@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.5.8](https://github.com/powerfullz/override-rules/compare/src-v2.5.7...src-v2.5.8) (2026-07-21)
+
+
+### Documentation
+
+- 记录 MyDirectCDN 分支名 bug 修复过程，标记首次搭建全部完成 ([75ac6c2](https://github.com/powerfullz/override-rules/commit/75ac6c259f3c5a38818bbeb3d24f6785f82a48e3))
+
+
+### Features
+
+- Add cdnjs to direct CDN rules ([aac03ac](https://github.com/powerfullz/override-rules/commit/aac03acf09c7f69641a63634239c8fe219c3b0aa))
 ## [2.5.7](https://github.com/powerfullz/override-rules/compare/src-v2.5.6...src-v2.5.7) (2026-07-21)
 
 
