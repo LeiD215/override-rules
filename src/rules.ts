@@ -7,9 +7,6 @@ const baseRules = [
     `RULE-SET,AdditionalFilter,${PROXY_GROUPS.AD_BLOCK}`,
     `RULE-SET,SogouInput,${PROXY_GROUPS.SOGOU_INPUT}`,
     `DOMAIN-SUFFIX,truthsocial.com,${PROXY_GROUPS.TRUTH_SOCIAL}`,
-    `RULE-SET,StaticResources,${PROXY_GROUPS.STATIC_RESOURCES}`,
-    `RULE-SET,CDNResources,${PROXY_GROUPS.STATIC_RESOURCES}`,
-    `RULE-SET,AdditionalCDNResources,${PROXY_GROUPS.STATIC_RESOURCES}`,
     `GEOSITE,category-ai-!cn,${PROXY_GROUPS.AI_SERVICE}`,
     `GEOSITE,bilibili,${PROXY_GROUPS.BILIBILI}`,
     `GEOSITE,youtube,${PROXY_GROUPS.YOUTUBE}`,
@@ -27,6 +24,11 @@ const baseRules = [
     `RULE-SET,Weibo,${PROXY_GROUPS.WEIBO}`,
     `RULE-SET,EHentai,${PROXY_GROUPS.EHENTAI}`,
     `RULE-SET,TikTok,${PROXY_GROUPS.TIKTOK}`,
+    // 自定义：自维护的"确实想直连"CDN 域名清单，取代上游的静态资源规则集。
+    // 特意放在所有专属服务规则之后——避免重蹈"静态资源抢跑其他服务"的覆辙
+    // （即便这份清单目前只有几个国内 CDN 镜像域名，风险很低，但保持这个顺序
+    // 习惯本身就是对这类问题的免疫）。
+    `RULE-SET,MyDirectCDN,DIRECT`,
     `RULE-SET,SteamFix,DIRECT`,
     `RULE-SET,GoogleFCM,DIRECT`,
     `GEOSITE,google-play@cn,DIRECT`,

@@ -1,11 +1,4 @@
-import {
-    CDN_URL,
-    SPEEDTEST_URL,
-    LOW_COST_NODE_MATCHER,
-    NODE_SUFFIX,
-    PROXY_GROUPS,
-    countriesMeta,
-} from "./constants";
+import { CDN_URL, SPEEDTEST_URL, NODE_SUFFIX, PROXY_GROUPS, countriesMeta } from "./constants";
 import type { BuildProxyGroupsInput, GroupType, ProxyGroup } from "./types";
 import { isNotNull } from "./utils";
 
@@ -15,6 +8,22 @@ interface BuildGroupByTypeInput {
     groupType: GroupType;
     nodeSource: Pick<ProxyGroup, "proxies" | "include-all" | "filter" | "exclude-filter">;
 }
+
+/**
+ * 自定义：AI 服务偏好节点（Reality/VLRV 协议变体）。手动维护，不随节点列表
+ * 自动变化——物理节点改名/增删时记得同步这里。US-LAX-Bwh1 是当前日常手动
+ * 固定使用的节点，排最前面。多数主流 AI 服务会封禁香港 IP，所以香港节点单独
+ * 放进 AI_HK_FALLBACK_NODES，垫底保留，不放进主优先级列表。
+ * 见 _fork/adr/（AI 服务策略组相关记录）。
+ */
+const AI_PREFERRED_NODES = [
+    "US-LAX-Bwh1-VLRV-dllxr1",
+    "US-LAX-Dmit1-VLRV-dllxr1",
+    "JP-OSA-Bwh2-VLRV-dllxr1",
+    "JP-NRT-HH1-VLRV-dllxr1",
+    "JP-NRT-Alice1-VLRV-dllxr1",
+];
+const AI_HK_FALLBACK_NODES = ["HK-HKG-Dmit1-VLRV-dllxr1", "HK-HKG-HH1-VLRV-dllxr1"];
 
 /**
  * 根据代理组类型生成对应的代理组配置。
@@ -64,7 +73,6 @@ export function buildProxyGroups({
     groupType,
     countryNames,
     countryNodes,
-    lowCostNodes,
     landing,
     landingNodes,
     defaultProxies,
@@ -106,16 +114,30 @@ export function buildProxyGroups({
               }
             : null,
         {
-            name: PROXY_GROUPS.STATIC_RESOURCES,
-            icon: `${CDN_URL}/gh/Koolson/Qure@master/IconSet/Color/Cloudflare.png`,
-            type: "select",
-            proxies: defaultProxies,
-        },
-        {
             name: PROXY_GROUPS.AI_SERVICE,
             icon: `${CDN_URL}/gh/Koolson/Qure@master/IconSet/Color/ChatGPT.png`,
             type: "select",
-            proxies: defaultProxies,
+            // 自定义：手动选择为主，不用自动测速——AI 服务对 IP 跳变敏感，频繁
+            // 换节点容易触发登录风控。US-LAX-Bwh1（当前常用节点）排最前，美/日
+            // 节点在前、香港节点垫底保留。
+            proxies: [
+                ...AI_PREFERRED_NODES,
+                PROXY_GROUPS.AI_FALLBACK,
+                PROXY_GROUPS.MANUAL,
+                ...AI_HK_FALLBACK_NODES,
+            ],
+        },
+        {
+            name: PROXY_GROUPS.AI_FALLBACK,
+            icon: `${CDN_URL}/gh/Koolson/Qure@master/IconSet/Color/ChatGPT.png`,
+            type: "fallback",
+            // 探测目标用 AI 服务自己的域名，不用默认的测速地址——要测的是"这个
+            // 节点的出口 IP 有没有被 AI 服务单独拉黑"，不是单纯测网络通不通。
+            // interval 拉长到 300 秒，减少探测频率，避免被识别成异常流量。
+            url: "https://chatgpt.com",
+            interval: 300,
+            tolerance: 20,
+            proxies: AI_PREFERRED_NODES,
         },
         {
             name: PROXY_GROUPS.CRYPTO,
@@ -278,16 +300,8 @@ export function buildProxyGroups({
             interval: 60,
             tolerance: 20,
         },
-        lowCostNodes.length > 0 || regexFilter
-            ? buildGroupByType({
-                  name: PROXY_GROUPS.LOW_COST,
-                  icon: `${CDN_URL}/gh/Koolson/Qure@master/IconSet/Color/Lab.png`,
-                  groupType,
-                  nodeSource: !regexFilter
-                      ? { proxies: lowCostNodes.map((node) => node.name).filter(isNotNull) }
-                      : { "include-all": true as const, filter: LOW_COST_NODE_MATCHER.pattern },
-              })
-            : null,
+        // 自定义：移除"低倍率节点"分组。这是机场（商业订阅）场景的概念，纯自建
+        // VPS 没有"倍率"这个属性，这个分组对这份 fork 没有意义，直接不生成。
         ...countryNames.map((country) => {
             const meta = countriesMeta[country];
             if (!meta) return null;

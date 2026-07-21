@@ -18,21 +18,19 @@ export const ruleProviders: Record<string, RuleProvider> = {
         url: "https://ruleset.skk.moe/Clash/non_ip/sogouinput.txt",
         path: "./ruleset/SogouInput.txt",
     },
-    StaticResources: {
-        type: "http",
-        behavior: "domain",
-        format: "text",
-        interval: 86400,
-        url: "https://ruleset.skk.moe/Clash/domainset/cdn.txt",
-        path: "./ruleset/StaticResources.txt",
-    },
-    CDNResources: {
+    // 自定义：不再使用上游的 StaticResources/CDNResources/AdditionalCDNResources
+    // 三个规则集（第三方每天更新的大列表，实测发现混有大量本该属于具体服务的
+    // 域名，属于持续性风险，见 _fork/adr/0002-self-maintained-static-resources-list.md）。
+    // 改为指向我们 fork 自己维护的一份小名单，内容见 ruleset/MyDirectCDN.list。
+    MyDirectCDN: {
         type: "http",
         behavior: "classical",
         format: "text",
         interval: 86400,
-        url: "https://ruleset.skk.moe/Clash/non_ip/cdn.txt",
-        path: "./ruleset/CDNResources.txt",
+        // TODO: 替换成你自己 Fork 的 GitHub 用户名（构建前必须改，否则指向的是
+        // 你尚未创建的地址，会导致这个 rule-provider 拉取失败）
+        url: `${CDN_URL}/gh/LeiD215/override-rules@master/ruleset/MyDirectCDN.list`,
+        path: "./ruleset/MyDirectCDN.list",
     },
     TikTok: {
         type: "http",
@@ -73,14 +71,6 @@ export const ruleProviders: Record<string, RuleProvider> = {
         interval: 86400,
         url: `${CDN_URL}/gh/powerfullz/override-rules@master/ruleset/AdditionalFilter.list`,
         path: "./ruleset/AdditionalFilter.list",
-    },
-    AdditionalCDNResources: {
-        type: "http",
-        behavior: "classical",
-        format: "text",
-        interval: 86400,
-        url: `${CDN_URL}/gh/powerfullz/override-rules@master/ruleset/AdditionalCDNResources.list`,
-        path: "./ruleset/AdditionalCDNResources.list",
     },
     Crypto: {
         type: "http",

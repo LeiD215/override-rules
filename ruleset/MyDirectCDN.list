@@ -1,0 +1,15 @@
+# 自维护的"确实想直连"CDN 域名清单
+# 见 _fork/adr/0002-self-maintained-static-resources-list.md
+#
+# 维护约定：只加"明确知道、确实想直连"的域名，不追求覆盖面。
+# 每次加/删，记得在 _fork/CHANGELOG.md 里记一笔（哪怕只是一行）。
+
+# 国内 CDN 镜像，无需代理，直连没有疑问
+DOMAIN-SUFFIX,staticfile.org
+DOMAIN-SUFFIX,staticfile.net
+DOMAIN-SUFFIX,bootcdn.net
+DOMAIN-SUFFIX,bootcss.com
+DOMAIN-SUFFIX,baomitu.com
+
+# 全球性 CDN（如 cdnjs.cloudflare.com）国内可用性会随网络环境波动，
+# 自己实测确认稳定后再加到下面，加的时候顺手写个注释说明验证过
