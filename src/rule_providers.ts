@@ -29,7 +29,7 @@ export const ruleProviders: Record<string, RuleProvider> = {
         interval: 86400,
         // TODO: 替换成你自己 Fork 的 GitHub 用户名（构建前必须改，否则指向的是
         // 你尚未创建的地址，会导致这个 rule-provider 拉取失败）
-        url: `${CDN_URL}/gh/LeiD215/override-rules@master/ruleset/MyDirectCDN.list`,
+        url: `${CDN_URL}/gh/LeiD215/override-rules@main/ruleset/MyDirectCDN.list`,
         path: "./ruleset/MyDirectCDN.list",
     },
     TikTok: {
