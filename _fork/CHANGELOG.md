@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+### 测试任务：加入 cdnjs.cloudflare.com 直连规则
+
+- 开始：2026-07-21T13:39:22Z
+- 状态：进行中
+- 目标：验证 hermes 是否按 `_fork/SOP.md` 执行一个小型规则变更、类型检查、构建和 Fork 发布流程
+- 修改：在 `ruleset/MyDirectCDN.list` 加入 `cdnjs.cloudflare.com`
+- 初步验证：HTTP HEAD 请求返回 200；构建与发布验证待完成
+- 类型检查：`npx tsc --noEmit` 成功
+- 构建：`npm run build` 成功
+- 功能验证：模拟 3 个节点调用 `convert.js` 的 `main(config)` 成功；`MyDirectCDN` provider、规则 URL 和 `RULE-SET,MyDirectCDN,DIRECT` 均正确
+- 发布：待在确认过的个人 Fork `LeiD215/override-rules` 中执行 `npm version patch`
+
 ## [2026-07-21] 修复：MyDirectCDN provider 分支名写错（master → main）
 
 - 开始：2026-07-21

@@ -13,3 +13,5 @@ DOMAIN-SUFFIX,baomitu.com
 
 # 全球性 CDN（如 cdnjs.cloudflare.com）国内可用性会随网络环境波动，
 # 自己实测确认稳定后再加到下面，加的时候顺手写个注释说明验证过
+# 2026-07-21 实测 HTTP HEAD 返回 200；后续网络环境变化时需重新确认
+DOMAIN-SUFFIX,cdnjs.cloudflare.com
