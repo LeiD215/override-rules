@@ -6,6 +6,41 @@
 
 ## [Unreleased]
 
+## [2026-07-21] 修复：MyDirectCDN provider 分支名写错（master → main）
+
+- 开始：2026-07-21
+- 结束：2026-07-21
+
+### 问题 Problem
+Sub-Store 生成的配置里 `MyDirectCDN` rule-provider 一直存在，但客户端规则
+提供者面板显示不出内容 / 拉取的还是旧版本。排查发现两层问题：
+1. `src/rule_providers.ts` 里 `MyDirectCDN` 的 URL 写的是 `@master` 分支，
+   但实际查证上游仓库真实分支只有 `dist`/`main`/`preview`，根本没有
+   `master`——这是抄了 TikTok/EHentai 等原有条目的写法但没核实分支名是否
+   正确导致的失误
+2. 改完重新发布（`src-v2.5.7`）之后，Sub-Store 那边缓存了旧版本脚本内容，
+   没有自动感知更新，需要手动在 Sub-Store 后台刷新脚本条目才拉到新版本
+
+### 修改 Changed
+- `src/rule_providers.ts`：`MyDirectCDN` 的 URL 从 `@master` 改成 `@main`
+- 发布新版本 `src-v2.5.7` 使修改生效
+
+### 验证 Verified
+- Sub-Store 手动刷新脚本条目后，重新生成订阅，`MyDirectCDN` provider 的
+  `url` 字段确认变成了 `@main`
+- 客户端"规则提供者"面板确认能看到 `MyDirectCDN`，显示 5 条规则（对应
+  `ruleset/MyDirectCDN.list` 里的 5 个域名），端到端验证通过
+
+### 经验 Lesson
+- 抄现有代码的写法时，不能默认"能用"就是"对的"，尤其涉及外部 URL/分支名
+  这种容易长期不出问题、直到真正被拉取才暴露的地方，应该主动核实
+- Sub-Store/客户端存在脚本内容缓存，改完上游脚本后如果订阅端没反应，先怀疑
+  缓存没刷新，而不是急着怀疑代码逻辑本身
+
+关联: 无（bug 修复记录，不是新的架构决定）
+
+---
+
 ## [2026-07-21] 端到端验证通过 + 修正最终链接格式
 
 - 开始：2026-07-21

@@ -5,19 +5,18 @@
 
 - **这是什么**：`powerfullz/override-rules` 的个人 Fork，按照 ADR-0003 的决定，
   自定义规则直接写在 `src/*.ts` 源码里，用项目自带的构建流程产出最终覆写脚本
-- **当前阶段**：✅ 首次搭建已完成，端到端验证通过，可以正式使用
+- **当前阶段**：✅ 首次搭建 + 端到端验证全部完成（含一次分支名 bug 修复），
+  可以正式交给 hermes 接手日常维护
 - **上次动手时间**：2026-07-21
 - **上次做了什么**：
-  - 在 Windows 11 上完成了完整的首次搭建流程：Fork → clone → 套用自定义
-    改动 → 替换用户名占位符 → 本地验证（`tsc`/`build` 均通过）→ 提交推送
-    （`LeiD215/override-rules`）→ 启用 GitHub Actions → 发布 `src-v2.5.6`
-    （对应产物版本 `v2.5.6`）→ Release Artifacts 工作流跑通
-  - **实测确认最终订阅链接可正常访问**：
+  - 完成首次搭建全流程（Fork → clone → 套用改动 → 本地验证 → 提交推送 →
+    启用 Actions → 发布 `src-v2.5.6`）
+  - 排查并修复了一个真实 bug：`MyDirectCDN` provider 的 URL 分支名写错
+    （`@master` 应为 `@main`），发布 `src-v2.5.7` 修复
+  - Sub-Store 刷新脚本条目后，客户端"规则提供者"面板确认 `MyDirectCDN`
+    正常生效（5 条规则）
+  - **最终确认可用的链接**：
     `https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js`
-  - 更正了之前记录里一处不准确的信息：最终链接不需要 `@dist` 后缀，jsDelivr
-    不带 `@` 版本号时默认取最新 tag，发布脚本会自动把不带 `src-` 前缀的纯
-    版本号 tag（如 `v2.5.6`）指向最新产物，所以裸链接会自动跟着每次发布更新；
-    锁定某个具体版本用 `@v2.5.6` 这种格式（不是 `@src-v2.5.6`）
 - **当前跟踪的上游版本**：Fork 时的 `main` 分支（对应 upstream release v2.5.5，
   2026-06-30）
 - **下一步待办**：
@@ -25,14 +24,13 @@
   - [x] 把本地改动 push 上去
   - [x] 替换 `MyDirectCDN` provider 的 `YOUR_GITHUB_USERNAME` 占位符
   - [x] 启用 GitHub Actions
-  - [x] 跑 `npm version patch` 触发首次发布，`dist` 分支产出正常
+  - [x] 跑 `npm version patch` 触发首次发布
   - [x] 最终链接实测可正常访问
-  - [ ] 在 Sub-Store 里把订阅脚本换成这个新链接，实测生成的完整配置（含真实
-        节点）符合预期——**这是唯一还没做的验证，做完就可以正式让 hermes
-        接手日常维护了**
-  - [ ] 交给 hermes 前，先让它做一次小任务（比如往
-        `ruleset/MyDirectCDN.list` 加一个域名）验证它有没有按
-        `override-rules-fork-ops` Skill 的规矩执行
+  - [x] 在 Sub-Store 里实测生成的完整配置，修复了分支名 bug，确认
+        `MyDirectCDN` 等自定义内容全部正常生效
+  - [ ] 正式交给 hermes：先用一个小任务测试它有没有按
+        `override-rules-fork-ops` Skill 的规矩执行（比如往
+        `ruleset/MyDirectCDN.list` 加一个域名，走一遍完整发布流程）
 
 > 如果时隔很久重新打开这个项目：
 > 1. 先看这一节，了解当前进度
