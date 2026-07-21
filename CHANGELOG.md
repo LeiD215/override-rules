@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.5.7](https://github.com/powerfullz/override-rules/compare/src-v2.5.6...src-v2.5.7) (2026-07-21)
+
+
+### Bug Fixes
+
+- MyDirectCDN provider 分支名写错，master 改成 main ([0e44249](https://github.com/powerfullz/override-rules/commit/0e44249aebd837704edd45b3d81c107073c6fafb))
+
+
+### Documentation
+
+- 纠正最终链接格式，记录端到端验证结果 ([a645590](https://github.com/powerfullz/override-rules/commit/a64559051cafd5dc87100ea78e93852e27fa76be))
 ## [2.5.6](https://github.com/powerfullz/override-rules/compare/...src-v2.5.6) (2026-07-21)
 
 
