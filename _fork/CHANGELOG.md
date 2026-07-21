@@ -9,14 +9,16 @@
 ### 测试任务：加入 cdnjs.cloudflare.com 直连规则
 
 - 开始：2026-07-21T13:39:22Z
-- 状态：进行中
+- 结束：2026-07-21T13:47:34Z
+- 状态：本地验证完成；发布推送受当前环境缺少 GitHub 凭据阻塞
 - 目标：验证 hermes 是否按 `_fork/SOP.md` 执行一个小型规则变更、类型检查、构建和 Fork 发布流程
-- 修改：在 `ruleset/MyDirectCDN.list` 加入 `cdnjs.cloudflare.com`
-- 初步验证：HTTP HEAD 请求返回 200；构建与发布验证待完成
+- 修改：在 `ruleset/MyDirectCDN.list` 加入 `cdnjs.cloudflare.com`，并记录 2026-07-21 HTTP HEAD 返回 200
 - 类型检查：`npx tsc --noEmit` 成功
-- 构建：`npm run build` 成功
+- 构建：`npm run build` 成功；`npm run artifacts` 成功，生成 192 个 YAML 文件
 - 功能验证：模拟 3 个节点调用 `convert.js` 的 `main(config)` 成功；`MyDirectCDN` provider、规则 URL 和 `RULE-SET,MyDirectCDN,DIRECT` 均正确
-- 发布：待在确认过的个人 Fork `LeiD215/override-rules` 中执行 `npm version patch`
+- 发布准备：`npm version patch` 已通过 lint/typecheck，生成本地提交 `d9d098e` 和 tag `src-v2.5.8`
+- 发布阻塞：`postversion` 的 `git push --follow-tags` 因无 HTTPS/SSH GitHub 凭据失败；远端 `main` 仍未包含本次改动，远端 `src-v2.5.8` 也尚未存在
+- 未触碰：根目录 `README.md`、`_fork/STATUS.md`、所有 ADR、构建产物未被手工编辑
 
 ## [2026-07-21] 修复：MyDirectCDN provider 分支名写错（master → main）
 
