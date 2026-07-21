@@ -76,8 +76,11 @@ npm version patch   # 或 minor / major，视改动性质而定
 发布后确认 Actions 页面的 "Release Artifacts" 工作流跑完，然后确认最终链接
 可以正常访问：
 ```
-https://cdn.jsdelivr.net/gh/<你的用户名>/override-rules@dist/convert.min.js
+https://cdn.jsdelivr.net/gh/<你的用户名>/override-rules/convert.min.js
 ```
+（不带 `@` 版本号，jsDelivr 会自动取最新发布——发布脚本每次会把不带 `src-`
+前缀的纯版本号 tag 如 `v2.5.6` 指向最新产物。想锁定某个具体版本，用
+`@v2.5.6` 这种格式，注意不是 `@src-v2.5.6`。）
 
 ## 首次搭建检查清单（还没做完的话，按这个顺序）
 

@@ -6,6 +6,28 @@
 
 ## [Unreleased]
 
+## [2026-07-21] 端到端验证通过 + 修正最终链接格式
+
+- 开始：2026-07-21
+- 结束：2026-07-21
+
+### 验证 Verified
+- 在 Windows 11 上完整走了一遍首次搭建流程：Fork → clone → 套用改动 →
+  替换占位符 → 本地 `tsc`/`build` 验证 → 提交推送 → 启用 Actions →
+  `npm version patch` 发布 `src-v2.5.6` → Release Artifacts 工作流跑通
+- 最终链接 `https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js`
+  实测可正常访问
+
+### 修改 Changed
+- 更正 `_fork/STATUS.md`/`_fork/SOP.md` 里此前写错的最终链接格式：不需要
+  `@dist` 后缀。查看真实的 `.github/workflows/release.yaml` 后确认：发布
+  脚本会把一个不带 `src-` 前缀的纯版本号 tag（如 `v2.5.6`）强制指向最新产物，
+  jsDelivr 不带 `@` 版本号时默认取最新 tag，所以裸链接会自动跟着每次发布更新
+
+关联: 无（文档纠错 + 例行验证记录，不是新的架构决定）
+
+---
+
 ## [2026-07-21] Fork 架构定型 + 完成首版自定义
 
 - 开始：2026-07-21
