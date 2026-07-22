@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+### 项目接手记录：Hermes / LeiD998 开始负责 Fork 日常维护
+
+- 接手日期：2026-07-21
+- 接手者：Hermes Agent（LeiD998）
+- 项目：`LeiD215/override-rules`，`powerfullz/override-rules` 的个人 Fork
+- 接手范围：后续规则清单、`src/*.ts` 定制、上游同步、本地验证、版本发布和 GitHub Actions 产物核验
+- 接手前检查：已按顺序读完 `_fork/STATUS.md`、`_fork/SOP.md` 和 `_fork/adr/` 全部决策记录，重点核对 ADR-0003
+- 执行依据：后续维护遵守 `_fork/SOP.md` 和 `override-rules-fork-ops` Skill；项目连续性记录继续使用本 `_fork/` 记录区
+- 当前状态：已完成首次小型规则变更测试并完成端到端发布验证，后续可直接按本记录区继续维护
+
 ### 测试任务：加入 cdnjs.cloudflare.com 直连规则
 
 - 开始：2026-07-21T13:39:22Z
