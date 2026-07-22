@@ -5,12 +5,15 @@
 
 - **这是什么**：`powerfullz/override-rules` 的个人 Fork，按照 ADR-0003 的决定，
   自定义规则直接写在 `src/*.ts` 源码里，用项目自带的构建流程产出最终覆写脚本
-- **当前阶段**：✅ 首次搭建 + 端到端验证全部完成（含一次分支名 bug 修复），
-  已完成一次小型日常维护任务的本地验证；发布推送待在有 GitHub 凭据的环境继续
+- **当前阶段**：✅ 首次搭建、端到端验证和首次 Hermes 日常维护测试均已完成；
+  当前正在把执行纪律与安全红线正式固化到项目 SOP，等待本地提交后由用户验收
 - **维护归属**：自 2026-07-21 起由 Hermes Agent（LeiD998）接手日常维护；
   连续性记录统一使用 `_fork/STATUS.md`、`_fork/CHANGELOG.md` 和 `_fork/adr/`
-- **上次动手时间**：2026-07-21
+- **上次动手时间**：2026-07-22
 - **上次做了什么**：
+  - 在 `_fork/SOP.md` 新增“执行纪律与安全红线”，把多步骤任务逐步汇报、
+    本地提交经确认后再 push、凭据隔离、仓库限定 Fine-grained Token 和 push 后
+    完整验证等要求正式固化为仓库规则
   - 完成首次搭建全流程（Fork → clone → 套用改动 → 本地验证 → 提交推送 →
     启用 Actions → 发布 `src-v2.5.6`）
   - 排查并修复了一个真实 bug：`MyDirectCDN` provider 的 URL 分支名写错
@@ -20,17 +23,17 @@
   - 完成本次测试任务：在 `ruleset/MyDirectCDN.list` 加入
     `cdnjs.cloudflare.com`，本地 `tsc`、lint、build、artifacts 和模拟节点
     功能验证全部通过
-  - `npm version patch` 已生成本地 `src-v2.5.8`，但推送因当前环境没有 GitHub
-    凭据失败；远端尚未更新
+  - `src-v2.5.8` 已推送并完成 Release Artifacts；远端 `main`、tag、Actions、
+    `convert.min.js` 和 `MyDirectCDN` 最终规则内容均已实际验证
   - **最终确认可用的链接**：
     `https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js`
 - **当前跟踪的上游版本**：Fork 时的 `main` 分支（对应 upstream release v2.5.5，
   2026-06-30）
 - **下一步待办**：
   - [x] 在 GitHub 上实际执行 Fork（`LeiD215/override-rules`）
-  - [ ] 将本地 `src-v2.5.8` 提交和 tag 推送到 GitHub Fork（需要 GitHub 凭据）
-  - [ ] 确认 `src-v2.5.8` 的 Release Artifacts 工作流完成
-  - [ ] 验证 `convert.min.js` 和 `ruleset/MyDirectCDN.list` 的远端产物包含新规则
+  - [x] 将 `src-v2.5.8` 提交和 tag 推送到 GitHub Fork
+  - [x] 确认 `src-v2.5.8` 的 Release Artifacts 工作流完成
+  - [x] 验证 `convert.min.js` 和 `ruleset/MyDirectCDN.list` 的远端产物包含新规则
   - [x] 把本地改动 push 上去（历史版本）
   - [x] 替换 `MyDirectCDN` provider 的 `YOUR_GITHUB_USERNAME` 占位符
   - [x] 启用 GitHub Actions
