@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.5.9](https://github.com/powerfullz/override-rules/compare/src-v2.5.8...src-v2.5.9) (2026-07-24)
+
+
+### Bug Fixes
+
+- 彻底清理'低倍率节点'移除后残留的死代码链 ([70d6d71](https://github.com/powerfullz/override-rules/commit/70d6d71f5935e2e1684e36e0cdd8189eed34305b))
+- 移除 buildBaseLists 对已删除的'低倍率节点'分组引用 ([8d28272](https://github.com/powerfullz/override-rules/commit/8d2827229431c23160d845f820b7b3cce14ea6ae))
+
+
+### Documentation
+
+- Add execution and credential safety rules ([278868d](https://github.com/powerfullz/override-rules/commit/278868d21ba249011166afa669f379ea4a03929e))
+- Record Hermes project handover ([2470d16](https://github.com/powerfullz/override-rules/commit/2470d1629c7d6433431c047204f00964bceb79d4))
+- Record cdnjs maintenance validation ([3355ceb](https://github.com/powerfullz/override-rules/commit/3355ceb5bbcfa195f2ff0e9d2b2b7f13b3ff220b))
 ## [2.5.8](https://github.com/powerfullz/override-rules/compare/src-v2.5.7...src-v2.5.8) (2026-07-21)
 
 
