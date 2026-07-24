@@ -6,6 +6,28 @@
 
 ## [Unreleased]
 
+### 新增：强制直连/强制代理覆盖名单
+
+- 开始：2026-07-24 14:30 UTC+8
+- 结束：2026-07-24 14:35 UTC+8
+- 类型：新增
+- 对象：`src/rule_providers.ts`, `src/rules.ts`, `ruleset/MustDirect.list`, `ruleset/MustProxy.list`
+- 原因：需要一组不受其他规则影响的强制覆盖名单，优先级高于广告拦截、GFWList、所有服务专属分组等一切业务规则，但低于私有内网直连（保留内网安全兜底）
+- 关联：无
+- 修改：
+  - `src/rule_providers.ts`：新增 MustDirect 和 MustProxy 两个 rule-provider 定义
+  - `src/rules.ts`：在 baseRules 数组中，GEOIP,private 之后、ADBlock 之前插入两条规则
+  - `ruleset/MustDirect.list`：新建空名单，包含格式说明注释
+  - `ruleset/MustProxy.list`：新建空名单，包含格式说明注释
+- 验证：通过
+  - `npx tsc --noEmit`：无类型错误
+  - `npm run build`：构建成功
+  - 功能验证：用真实节点数据调用 main(config)，确认 rules 数组中 MustDirect/MustProxy 位置正确（private 之后、ADBlock 之前），rule-providers 中包含这两个新 provider
+- 影响：未触碰根目录 README.md / CHANGELOG.md、_fork/STATUS.md、ADR 目录、构建产物 convert.js / convert.min.js / yamls/
+- 撤回：否
+- author: ai
+- verified_by:
+
 ### 修复：彻底清理"低倍率节点"分组移除后残留的死代码链
 
 - 开始：2026-07-22 11:10 UTC (UTC+0)

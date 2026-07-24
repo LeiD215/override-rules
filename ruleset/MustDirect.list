@@ -1,0 +1,8 @@
+# 强制直连名单
+#
+# 优先级：高于所有业务规则（广告拦截、GFWList、服务专属分组等），
+# 但低于私有内网直连（GEOIP,private）。
+#
+# 支持格式：DOMAIN-SUFFIX / DOMAIN / IP-CIDR / IP-CIDR6，一行一条。
+# 维护约定：只加"明确知道、确实想强制直连"的域名/IP。
+# 每次加/删，记得在 _fork/CHANGELOG.md 里记一笔。

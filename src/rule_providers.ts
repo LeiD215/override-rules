@@ -32,6 +32,24 @@ export const ruleProviders: Record<string, RuleProvider> = {
         url: `${CDN_URL}/gh/LeiD215/override-rules@main/ruleset/MyDirectCDN.list`,
         path: "./ruleset/MyDirectCDN.list",
     },
+    // 强制覆盖名单：优先级高于所有业务规则（广告拦截、GFWList、服务专属分组等），
+    // 但低于私有内网直连（保留内网安全兜底）。
+    MustDirect: {
+        type: "http",
+        behavior: "classical",
+        format: "text",
+        interval: 86400,
+        url: `${CDN_URL}/gh/LeiD215/override-rules@main/ruleset/MustDirect.list`,
+        path: "./ruleset/MustDirect.list",
+    },
+    MustProxy: {
+        type: "http",
+        behavior: "classical",
+        format: "text",
+        interval: 86400,
+        url: `${CDN_URL}/gh/LeiD215/override-rules@main/ruleset/MustProxy.list`,
+        path: "./ruleset/MustProxy.list",
+    },
     TikTok: {
         type: "http",
         behavior: "classical",
