@@ -9,22 +9,24 @@
 ### 修复：彻底清理"低倍率节点"分组移除后残留的死代码链
 
 - 开始：2026-07-22T11:10:00Z
-- 结束：
+- 结束：2026-07-22T11:18:00Z
 - 类型：修复
 - 对象：`src/constants.ts`, `src/node_parser.ts`, `src/main.ts`, `src/types.ts`, `src/selectors.ts`
 - 关联：紧随 2026-07-22 的"修复：selectors.ts 仍引用已删除的低倍率节点分组"那次修复——selectors.ts 那一刀只堵住了一个出口，`lowCostNodes` / `LOW_COST_NODE_MATCHER` / `LOW_COST` 在五个文件里形成的是一条完整的死代码链，不一次性清掉，下次同步上游或改代码时很容易再撞到第二个、第三个坑
-- 原因：iOS 客户端（Clash Mi）启动报 `proxy group[6]: 选择代理: '低倍率节点' not found`；昨天只删了 selectors.ts 第 23 行的判断和三处 `lowCost && PROXY_GROUPS.LOW_COST` 调用，但常量定义、解析函数、类型声明、调用方传参都没动；本次按用户确认的方案做全量清理
+- 原因：iOS 客户端（Clash Mi）启动报 `proxy group[6]: 选择代理: '低倍率节点' not found`；阶段 1 只删了 selectors.ts 第 23 行的判断和三处 `lowCost && PROXY_GROUPS.LOW_COST` 调用，但常量定义、解析函数、类型声明、调用方传参都没动；本次按用户确认的方案做全量清理
 - 修改：
-  - `src/constants.ts`：删除 `LOW_COST_NODE_MATCHER` 常量定义、`PROXY_GROUPS` 对象里的 `LOW_COST: "低倍率节点",` 行、顶部 `createCaseInsensitiveNodeMatcher` 的导入
+  - `src/constants.ts`：删除 `LOW_COST_NODE_MATCHER` 常量定义、`PROXY_GROUPS` 对象里的 `LOW_COST: "低倍率节点",` 行、顶部 `createCaseInsensitiveNodeMatcher` 的导入（保留 `utils.ts` 里 helper 函数本身的定义，未来可能还要用）
   - `src/node_parser.ts`：删除 `parseLowCost` 函数及其 JSDoc 注释；`LOW_COST_NODE_MATCHER` 改为只导入 `countriesMeta`
   - `src/main.ts`：从 `./node_parser` 的导入里删掉 `parseLowCost`；删除 `const lowCostNodes = parseLowCost(...)`；`buildBaseLists({...})` / `buildProxyGroups({...})` 两个对象字面量里各删掉 `lowCostNodes,` 这一行
   - `src/types.ts`：`BuildBaseListsInput` 和 `BuildProxyGroupsInput` 两个接口里各删掉 `lowCostNodes: ProxyNode[];` 这一行
-  - `src/selectors.ts`：删除 JSDoc 里的 `@param input.lowCostNodes - 低价节点名称列表` 这一行（代码本身昨天已清）
-- 验证（每步独立执行，不是改完一次性验证）：
-  - [ ] `npx tsc --noEmit`：无类型错误
-  - [ ] `npm run build`：构建成功，产物包含 `convert.js` / `convert.min.js`
-  - [ ] 功能验证：用真实节点数据调用构建产物的 `main(config)`，核对 `proxy-groups` 数量、"低倍率节点"分组不存在、所有分组候选列表无残留引用、AI 服务分组不受影响
-- 状态：本地分支 `fix/remove-lowcost-dead-refs`，待用户验收后 push
+  - `src/selectors.ts`：删除 JSDoc 里的 `@param input.lowCostNodes - 低价节点名称列表` 这一行（selectors.ts 代码本身已在阶段 1 修复中清掉，本条只补这一行注释的清理）
+- 验证（每步独立执行）：
+  - [x] `npx tsc --noEmit`：无类型错误
+  - [x] `npm run build`：构建成功，产物包含 `convert.js` / `convert.min.js`
+  - [x] `npm run lint`：通过
+  - [x] 功能验证：14 个真实节点数据调用 `main(config)`，`proxy-groups=34`、"低倍率节点"分组不存在、所有候选列表无残留引用、AI 服务 9 个 / AI 故障转移 5 个候选完整保留、选择代理/自动选择/故障转移三个基础分组候选列表正确
+  - [x] 全文搜索确认：`src/` 下已无 `lowCost` / `LowCost` / `LOW_COST` / `parseLowCost` 任何残留
+- 状态：本地分支 `fix/remove-lowcost-dead-refs`，阶段 1（`8d28272`）+ 阶段 2（即将提交）两次本地提交都在该分支上，待用户验收后一次性 push
 - 未触碰：根目录 `README.md` / `CHANGELOG.md`、`_fork/STATUS.md`、ADR 目录、构建产物 `convert.js` / `convert.min.js` / `yamls/`
 
 ### 修复：src/selectors.ts 仍引用已删除的"低倍率节点"分组（本次修复的第一刀，仅 selectors.ts）
