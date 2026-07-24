@@ -15,7 +15,8 @@
 ```yaml
 仓库地址: https://github.com/LeiD215/override-rules
 上游地址: https://github.com/powerfullz/override-rules
-版本: v2.5.9
+最新已发布版本: v2.5.9（dist 分支对应的 convert.min.js）
+main 分支最新提交: 4c10aeb（包含 MustDirect/MustProxy 空名单骨架，尚未发布新版本）
 最终产出链接: https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js
 dist 分支: https://github.com/LeiD215/override-rules/tree/dist
 维护者: Hermes Agent（LeiD998），GitHub 账号 LeiD215
@@ -31,16 +32,16 @@ dist 分支: https://github.com/LeiD215/override-rules/tree/dist
 
 | 内容 | 状态 |
 |---|---|
-| 上游跟踪版本：Fork 时的 main 分支（对应 upstream release v2.5.5，2026-06-30），之后未同步过上游更新 | 已补（2026-07-24 迁移时补全） |
+| 上游跟踪版本：Fork 时的 main 分支（对应 upstream release v2.5.5，2026-06-30），之后未同步过上游更新 | 未解决（仍落后于 upstream） |
+| MustDirect/MustProxy 名单为空，骨架已就位但无实际内容 | 未解决（等用户确认需要覆盖的域名/IP） |
 
 ## 当前阶段
 
-首次搭建、端到端验证、首次 Hermes 日常维护测试、bug 修复（低倍率节点残留引用）、
-文档体系迁移（logbook → blackbox）均已完成。项目进入日常维护状态。
+bug 修复（低倍率节点残留引用）、文档体系迁移（logbook → blackbox）、强制覆盖功能骨架（MustDirect/MustProxy）均已落地。项目进入日常维护状态。
 
 ## 上次做了什么
 
-（2026-07-24）将项目记录体系从 logbook 风格迁移到 blackbox 格式。详见 CHANGELOG。
+（2026-07-24）完成强制直连/强制代理覆盖功能骨架：在 main 上新增 MustDirect/MustProxy 两个空名单 provider，优先级高于所有业务规则但低于私有内网直连；因名单为空不影响现有路由行为，未发布新版本。详见 CHANGELOG。
 
 ## 下一步待办
 
@@ -51,8 +52,9 @@ dist 分支: https://github.com/LeiD215/override-rules/tree/dist
 - [x] 执行纪律与安全红线落入 SOP
 - [x] 修复"低倍率节点"分组移除后残留引用，发布 `v2.5.9`
 - [x] 文档体系从 logbook 迁移到 blackbox
+- [x] 新增 MustDirect/MustProxy 强制覆盖功能骨架（main 已合并，未发布新版本）
 - [ ] 同步上游更新（当前落后于 upstream，Fork 时基于 v2.5.5）
-- [ ] "必须直连/必须代理"强制覆盖分组功能（另开分支）
+- [ ] MustDirect/MustProxy 名单为空，等用户确认需要覆盖的域名/IP 后补充；补充后视实际影响决定是否发布新版本
 
 ---
 
