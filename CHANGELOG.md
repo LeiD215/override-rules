@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.5.10](https://github.com/powerfullz/override-rules/compare/src-v2.5.9...src-v2.5.10) (2026-07-25)
+
+
+### Chores
+
+- Force llm-api.net direct ([75633ec](https://github.com/powerfullz/override-rules/commit/75633ecb6d21a4a7d4cbe8cfa43b419d9792423d))
+
+
+### Documentation
+
+- 收尾记录从 [Unreleased] 挪到正式日期标题 ([72772e2](https://github.com/powerfullz/override-rules/commit/72772e2e9150d04b35ae36b25f8999cdfa8b7636))
+- STATUS.md 收尾更新 + CHANGELOG 记录 ([37cb02d](https://github.com/powerfullz/override-rules/commit/37cb02d96e97f02d644fe6519454d4f10ce3b07a))
+- CHANGELOG 时间戳改为约等表达（之前是估算值） ([4c10aeb](https://github.com/powerfullz/override-rules/commit/4c10aeb00b2b18d1540d95272f5b5cedab87318b))
+- CHANGELOG 时间戳格式补全并从 Unreleased 移出 ([11dcbce](https://github.com/powerfullz/override-rules/commit/11dcbcec8c09a6503e127519fe7630526146bfbf))
+- 修正 CHANGELOG 迁移记录的时间戳和验证状态 ([e2ea99e](https://github.com/powerfullz/override-rules/commit/e2ea99e529d2c29d775e6ef5fd87282189f2f89e))
+- 从 logbook 迁移到 blackbox 记录体系 ([fa71c20](https://github.com/powerfullz/override-rules/commit/fa71c20e8515bb1ad0c109102efe49c99c4b6885))
+
+
+### Features
+
+- 添加强制直连/强制代理覆盖名单 ([3f10ed7](https://github.com/powerfullz/override-rules/commit/3f10ed751377cadaadb6284474b9afb8f4a1740d))
 ## [2.5.9](https://github.com/powerfullz/override-rules/compare/src-v2.5.8...src-v2.5.9) (2026-07-24)
 
 
