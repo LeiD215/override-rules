@@ -6,6 +6,33 @@
 
 ## [Unreleased]
 
+## [2026-07-25] 修复：补一次发布 v2.5.10，让 MustDirect/MustProxy 真正生效
+
+- 开始：2026-07-25 00:27 UTC (UTC+0)
+- 结束：2026-07-25 00:31 UTC (UTC+0)
+- 类型：修复
+- 对象：整个发布流程（`package.json`、`scripts/changelog.mjs` 自动产物、GitHub Actions Release Artifacts 工作流、`dist` 分支上的 `convert.min.js`）
+- 原因：之前两次误判"内容为空/只加一条数据，不需要发布"，漏了"rule-provider 引用本身要靠发布才能编译进 `convert.min.js`"——结果是 MustDirect/MustProxy 功能虽然合并进 main，却从未在已发布的产物中实际生效；客户端即使配置使用这个 Fork 也看不到强制覆盖能力
+- 关联：
+  - "新增：强制直连/强制代理覆盖名单"（2026-07-24，骨架合并进 main）
+  - "新增：llm-api.net 强制直连规则"（2026-07-24，第一次实际填充 MustDirect.list 内容）
+- 修改：
+  - `package.json`：`2.5.9` → `2.5.10`（由 `npm version patch` 自动改）
+  - `CHANGELOG.md`（根目录，上游自动生成的版本历史）：由 `scripts/changelog.mjs` 自动加一条 v2.5.10
+  - 新增本地 tag `src-v2.5.10` 并推送
+- 验证：通过
+  - 三方对齐：本地 HEAD = 远端 main = `f79995544070f0203810c92247a1582b0556a9db`；tag `src-v2.5.10` 远端存在（`git ls-remote` + `gh api` 双源核对）
+  - GitHub Actions Release Artifacts：run `30136346322`，`completed / success`，开始 `00:28:08Z`、结束 `00:28:46Z`（约 38 秒）
+  - 构建产物功能验证（用真实节点数据跑 `main(config)`）：
+    - rule-providers 包含 `MustDirect` 和 `MustProxy`（13 个 provider 都在）
+    - rules 数组里有 `RULE-SET,MustDirect,DIRECT` 和 `RULE-SET,MustProxy,选择代理`，位置序列：GEOIP,private → MustDirect → MustProxy → ADBlock → AdditionalFilter
+    - 低倍率节点分组依然不存在，所有分组的 proxies 候选列表里都没有引用它（无回归）
+  - 最终链接：`https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js`，HTTP 200，20208 字节；`grep` 出 `MustDirect` × 4、`MustProxy` × 4、`低倍率节点` × 0
+- 影响：客户端从下次 Sub-Store/客户端刷新起，将看到 MustDirect/MustProxy rule-provider 被引用，强制覆盖能力真正生效
+- 撤回：否
+- author: ai
+- verified_by:
+
 ## [2026-07-24] 新增：llm-api.net 强制直连规则
 
 - 开始：2026-07-24 11:04 UTC (UTC+0)

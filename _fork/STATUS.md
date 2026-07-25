@@ -15,8 +15,8 @@
 ```yaml
 仓库地址: https://github.com/LeiD215/override-rules
 上游地址: https://github.com/powerfullz/override-rules
-最新已发布版本: v2.5.9（dist 分支对应的 convert.min.js）
-main 分支最新提交: 4c10aeb（包含 MustDirect/MustProxy 空名单骨架，尚未发布新版本）
+最新已发布版本: v2.5.10（dist 分支对应的 convert.min.js；2026-07-25 补一次发布，让之前合并进 main 的 MustDirect/MustProxy 功能真正生效）
+main 分支最新提交: f799955（chore(release): 2.5.10）
 最终产出链接: https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js
 dist 分支: https://github.com/LeiD215/override-rules/tree/dist
 维护者: Hermes Agent（LeiD998），GitHub 账号 LeiD215
@@ -33,15 +33,18 @@ dist 分支: https://github.com/LeiD215/override-rules/tree/dist
 | 内容 | 状态 |
 |---|---|
 | 上游跟踪版本：Fork 时的 main 分支（对应 upstream release v2.5.5，2026-06-30），之后未同步过上游更新 | 未解决（仍落后于 upstream） |
-| MustDirect/MustProxy 名单为空，骨架已就位但无实际内容 | 未解决（等用户确认需要覆盖的域名/IP） |
+| MustDirect/MustProxy 名单为空，骨架已就位但无实际内容 | 已解决（2026-07-24 已加 llm-api.net 一条；2026-07-25 补发布 v2.5.10 后规则真正生效） |
 
 ## 当前阶段
 
-bug 修复（低倍率节点残留引用）、文档体系迁移（logbook → blackbox）、强制覆盖功能骨架（MustDirect/MustProxy）均已落地。项目进入日常维护状态。
+bug 修复（低倍率节点残留引用）、文档体系迁移（logbook → blackbox）、强制覆盖功能（MustDirect/MustProxy，含首发实际内容 llm-api.net）均已落地并发布 v2.5.10。项目进入日常维护状态。
 
 ## 上次做了什么
 
-（2026-07-24）完成强制直连/强制代理覆盖功能骨架：在 main 上新增 MustDirect/MustProxy 两个空名单 provider，优先级高于所有业务规则但低于私有内网直连；因名单为空不影响现有路由行为，未发布新版本。详见 CHANGELOG。
+（2026-07-24 → 2026-07-25）完成强制直连/强制代理覆盖功能并真正发布：
+- 2026-07-24：新增 MustDirect/MustProxy 两个空名单 provider（合并进 main），并写入第一条实际内容 llm-api.net
+- 2026-07-25：补一次发布 v2.5.10（之前两次误判"内容为空/只加一条数据不需要发布"，漏了"rule-provider 引用本身要靠发布才能编译进 convert.min.js"），让功能真正生效
+详见 CHANGELOG。
 
 ## 下一步待办
 
@@ -52,9 +55,9 @@ bug 修复（低倍率节点残留引用）、文档体系迁移（logbook → b
 - [x] 执行纪律与安全红线落入 SOP
 - [x] 修复"低倍率节点"分组移除后残留引用，发布 `v2.5.9`
 - [x] 文档体系从 logbook 迁移到 blackbox
-- [x] 新增 MustDirect/MustProxy 强制覆盖功能骨架（main 已合并，未发布新版本）
+- [x] 新增 MustDirect/MustProxy 强制覆盖功能（含首发内容 llm-api.net，2026-07-25 补发布 v2.5.10 后真正生效）
 - [ ] 同步上游更新（当前落后于 upstream，Fork 时基于 v2.5.5）
-- [ ] MustDirect/MustProxy 名单为空，等用户确认需要覆盖的域名/IP 后补充；补充后视实际影响决定是否发布新版本
+- [ ] 后续按需继续往 MustDirect/MustProxy 补充域名/IP
 
 ---
 
