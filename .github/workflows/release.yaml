@@ -43,6 +43,8 @@ jobs:
         run: npm run typecheck && npm run format && npm run lint
 
       - name: Build release artifacts
+        env:
+          OVERRIDE_RULES_VERSION: ${{ env.VERSION }}
         run: npm run artifacts
 
       - name: Assemble dist payload
