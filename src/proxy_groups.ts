@@ -165,13 +165,13 @@ export function buildProxyGroups({
         },
         {
             name: PROXY_GROUPS.ADOBE,
-            icon: `${CDN_URL}/gh/Koolson/Qure@master/IconSet/Color/Adobe.png`,
+            icon: `${CDN_URL}/gh/LeiD215/override-rules@main/icons/Adobe.png`,
             type: "select",
             proxies: ["REJECT", PROXY_GROUPS.SELECT, "DIRECT"],
         },
         {
             name: PROXY_GROUPS.AUTODESK,
-            icon: `${CDN_URL}/gh/Koolson/Qure@master/IconSet/Color/Autodesk.png`,
+            icon: `${CDN_URL}/gh/LeiD215/override-rules@main/icons/Autodesk.png`,
             type: "select",
             proxies: ["REJECT", PROXY_GROUPS.SELECT, "DIRECT"],
         },
