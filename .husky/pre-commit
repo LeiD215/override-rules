@@ -1,1 +1,52 @@
+#!/usr/bin/env sh
+# Pre-commit hook — 强制 blackbox 记录纪律
+#
+# 黑匣子 skill 的核心精神是"write-through，不是收尾动作"，
+# 但 agent 不会自觉遵守软约束，所以这一层把规则强制成 git hook：
+# 任何对 src/ 或 icons/ 的改动都必须同时 staged _fork/CHANGELOG.md，
+# 否则 commit exit 1（不会产生 commit）。
+#
+# 逃生口：紧急情况下可以用 `git commit --no-verify`，但**必须先在
+# _fork/CHANGELOG.md 补一条记录**（除非确实是无 _fork/ 价值的纯临时
+# 改动，例如 typo fix / 白名单微调）。详见 _fork/SOP.md"硬约束"章节。
+
+set -e
+
+# 检查 1：若 src/ 或 icons/ 有 staged 改动，必须 staged _fork/CHANGELOG.md
+src_diff=$(git diff --cached --name-only -- src/)
+icons_diff=$(git diff --cached --name-only -- icons/)
+changelog_diff=$(git diff --cached --name-only -- _fork/CHANGELOG.md)
+
+if [ -n "$src_diff" ] || [ -n "$icons_diff" ]; then
+    if [ -z "$changelog_diff" ]; then
+        cat >&2 <<'EOF'
+
+❌ 黑匣子强制记录未满足：
+
+检测到 src/ 或 icons/ 有 staged 改动，但没有 staged _fork/CHANGELOG.md。
+
+按 blackbox 规则，每个 src/ 或 icons/ 改动必须在同一个 commit 里伴生一条
+_fork/CHANGELOG.md 记录（write-through，不是"待会儿一起写"）。
+
+正确做法：
+  1. 撤掉这次 stage：git restore --staged <改动的文件>
+  2. 在 _fork/CHANGELOG.md 末尾追加一条完整记录（字段：开始/结束时间戳、
+     类型、对象、原因、修改、验证、影响、撤回、author）
+  3. 一起 git add 进这次 commit
+
+如果确实不是有意义的改动（例如 typo fix / 注释微调），
+可以用 `git commit --no-verify` 绕过——但**这不是默认做法**。
+
+详见 _fork/SOP.md "硬约束：blackbox 强制记录" 章节。
+
+EOF
+        exit 1
+    fi
+fi
+
+# 检查 2：若 _fork/STATUS.md 有 staged 改动，检查软锁标记是否合法
+# （软锁被占用且不是当前 agent 的话，应该接管而非直接覆盖——但这一步暂
+#  不强约束，留作防御纵深的第 2 层）
+
+# 通过检查，把控制权交给 lint-staged（prettier --write）
 npx lint-staged

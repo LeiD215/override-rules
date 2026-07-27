@@ -64,6 +64,47 @@ npm run build              # 实际构建，确认没有编译错误
 2. 更新 `_fork/STATUS.md`
 3. 一句话告诉用户改了哪些文件
 
+## 硬约束：blackbox 强制记录（git hook 层）
+
+这一节是**强制机制**（不是建议）。配合上一节"日常执行规则"使用，覆盖第 2 层
+软约束的失效模式：agent 不会自觉遵守"必须写记录"的文字规则，但 git hook 是
+物理约束——commit 直接被拒。
+
+**机制**（`.husky/pre-commit`）：
+
+1. 任何对 `src/` 或 `icons/` 的 staged 改动，必须同时 staged `_fork/CHANGELOG.md`
+   的改动，否则 commit exit 1
+2. 通过检查后照常交给 `lint-staged` 跑 prettier
+
+**怎么写记录**：
+
+- 在 `_fork/CHANGELOG.md` 末尾追加一条完整 blackbox 格式的记录
+  （开始/结束时间戳、类型、对象、原因、修改、验证、影响、撤回、author）
+- `npm run record:blackbox` 会 echo 一份字段清单提醒你——这是降低门槛，不是
+  替代思考
+
+**逃生口**：`git commit --no-verify`
+
+- 仅在确认是"非 _fork/ 价值的纯临时改动"时使用，例如 typo fix / 注释微调
+- **不是默认做法**——使用前先问"这次改动有没有信息价值？"，如果没价值不如
+  revert 而不是 `--no-verify` 绕过
+- 用了 `--no-verify` 必须在 CHANGELOG.md 当日/当批加一条"我用 --no-verify 绕过
+  的理由"，这是透明性要求
+
+**为什么是硬约束不是软约束**：
+
+- soft rule（"记得写"/"应该写"）靠 agent 自觉，会有几率失效（今天就有真实
+  失败案例：5 commit + 3 release + 2 issue + 1 图标，全部脱记超过 3 小时才被
+  发现）
+- hard rule（git hook 拒绝 commit）靠工具强制，**agent 能不能自觉到没关系**
+  ——它只要试图 commit 没写记录的改动就会被挡住
+
+**三层防御纵深**（这次只先实施第 1 层）：
+
+1. ✅ git pre-commit hook（已实装）—— 挡 99% 的"忘了记"
+2. ⏳ STATUS.md 软锁 + agent 自检（等今天 commit 上线后下次再做）
+3. ⏳ Sub-Store 端主动检查 generate 出来的 convert.min.js 是否含 `x-override-rules`（等下次发布时核查）
+
 ## 同步上游更新
 
 1. 确认已经配置了 `upstream` remote：

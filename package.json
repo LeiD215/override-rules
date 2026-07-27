@@ -17,7 +17,8 @@
     "prepare": "husky",
     "preversion": "npm run lint && npm run typecheck",
     "version": "node scripts/changelog.mjs && git add CHANGELOG.md",
-    "postversion": "git push --follow-tags"
+    "postversion": "git push --follow-tags",
+    "record:blackbox": "echo '⚠  记得在 _fork/CHANGELOG.md 追加一条完整记录（开始/结束时间戳、类型、对象、原因、修改、验证、影响、撤回、author），pre-commit hook 会强制检查 src/icons 改动是否有 CHANGELOG 改动伴生。详见 _fork/SOP.md \"硬约束\"章节。'"
   },
   "dependencies": {
     "yaml": "^2.9.0"
