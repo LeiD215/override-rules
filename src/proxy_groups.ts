@@ -149,7 +149,7 @@ export function buildProxyGroups({
             name: PROXY_GROUPS.APPLE,
             icon: `${CDN_URL}/gh/Koolson/Qure@master/IconSet/Color/Apple_2.png`,
             type: "select",
-            proxies: defaultProxies,
+            proxies: defaultProxiesDirect,
         },
         {
             name: PROXY_GROUPS.GOOGLE,
@@ -161,7 +161,19 @@ export function buildProxyGroups({
             name: PROXY_GROUPS.MICROSOFT,
             icon: `${CDN_URL}/gh/powerfullz/override-rules@master/icons/Microsoft_Copilot.png`,
             type: "select",
-            proxies: defaultProxies,
+            proxies: defaultProxiesDirect,
+        },
+        {
+            name: PROXY_GROUPS.ADOBE,
+            icon: `${CDN_URL}/gh/Koolson/Qure@master/IconSet/Color/Adobe.png`,
+            type: "select",
+            proxies: ["REJECT", PROXY_GROUPS.SELECT, "DIRECT"],
+        },
+        {
+            name: PROXY_GROUPS.AUTODESK,
+            icon: `${CDN_URL}/gh/Koolson/Qure@master/IconSet/Color/Autodesk.png`,
+            type: "select",
+            proxies: ["REJECT", PROXY_GROUPS.SELECT, "DIRECT"],
         },
         {
             name: PROXY_GROUPS.XBOX,

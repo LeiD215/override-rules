@@ -50,6 +50,22 @@ export const ruleProviders: Record<string, RuleProvider> = {
         url: `${CDN_URL}/gh/LeiD215/override-rules@main/ruleset/MustProxy.list`,
         path: "./ruleset/MustProxy.list",
     },
+    Adobe: {
+        type: "http",
+        behavior: "domain",
+        format: "text",
+        interval: 86400,
+        url: `${CDN_URL}/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/adobe-activation.list`,
+        path: "./ruleset/Adobe.list",
+    },
+    Autodesk: {
+        type: "http",
+        behavior: "domain",
+        format: "text",
+        interval: 2592000,
+        url: `${CDN_URL}/gh/LeiD215/override-rules@main/ruleset/Autodesk.list`,
+        path: "./ruleset/Autodesk.list",
+    },
     TikTok: {
         type: "http",
         behavior: "classical",

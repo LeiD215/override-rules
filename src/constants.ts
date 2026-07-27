@@ -17,6 +17,8 @@ export const PROXY_GROUPS = {
     APPLE: "苹果服务",
     GOOGLE: "谷歌服务",
     MICROSOFT: "微软服务",
+    ADOBE: "Adobe服务",
+    AUTODESK: "Autodsek服务",
     BILIBILI: "哔哩哔哩",
     BAHAMUT: "巴哈姆特",
     XBOX: "Xbox",

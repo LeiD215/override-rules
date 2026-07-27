@@ -41,6 +41,8 @@ const baseRules = [
     `GEOSITE,google,${PROXY_GROUPS.GOOGLE}`,
     `RULE-SET,Crypto,${PROXY_GROUPS.CRYPTO}`,
     `RULE-SET,GFWList,${PROXY_GROUPS.SELECT}`,
+    `RULE-SET,Adobe,${PROXY_GROUPS.ADOBE}`,
+    `RULE-SET,Autodesk,${PROXY_GROUPS.AUTODESK}`,
     `GEOIP,cn,DIRECT`,
     `MATCH,${PROXY_GROUPS.FINAL}`,
 ];
