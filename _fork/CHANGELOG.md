@@ -6,6 +6,169 @@
 
 ## [Unreleased]
 
+## [2026-07-27] 新增：生成 yaml 的版本元信息（x-override-rules namespace）
+- 开始：2026-07-27 11:30 UTC (UTC+0)
+- 结束：
+- 类型：新增 / 行为
+- 对象：
+  - `scripts/build.mjs`：3 层 fallback 读版本号（env > package.json > "unknown"）+ esbuild `define` 注入占位符
+  - `src/main.ts`：声明 `__OVERRIDE_RULES_VERSION__` / `__OVERRIDE_RULES_SCHEMA__` 常量（编译期替换）；`main()` return 第一个键加 `x-override-rules` metadata 块
+  - `src/types.ts`：新增 `OverrideRulesMeta` 接口 + `ClashConfig["x-override-rules"]?: OverrideRulesMeta` 字段
+  - `.github/workflows/release.yaml`：在 build step 加 `env: OVERRIDE_RULES_VERSION: ${{ env.VERSION }}`
+- 原因：用户希望"GitHub push 完 tag，能让客户端 yaml 里看到版本号"——客户端用户拿到订阅时一眼能看出 yaml 是哪个版本生成的、对应 GitHub release 哪个 tag。
+- 关键设计决策：
+  - **不能用 yaml 顶部注释**——`main()` 返回结构化对象，最终 yaml 是 Sub-Store 端 yaml.dump 序列化的，注释会被丢掉
+  - **不能用 `_meta`**——不是 Clash 规范官方字段，第三方 yaml 渲染器兼容性不可保证
+  - **使用 `x-override-rules`**——vendor-extension 命名空间，仿 OpenAPI / Docker compose 的 `x-` 前缀约定
+  - **第一个键返回**——`eemeli/yaml` 默认按对象键插入顺序，排在第一 = 在 yaml 输出顶部
+- 版本号来源（3 层 fallback）：
+  1. 环境变量 `OVERRIDE_RULES_VERSION`（GitHub Actions release.yaml 注入，从 git tag `src-vX.Y.Z` 切割为 `vX.Y.Z`）
+  2. `package.json` 的 `version` 字段（本地 dev / 手动 build）
+  3. 兜底 `"unknown"`（任何环节异常都不会编造假数字——符合"时间戳真实数据原则"）
+- schema 版本号：当前 = `"1"`，写死常量；未来 override-rules 配置格式有 breaking change 时递增
+- 输出形态（客户端 yaml 顶部）：
+  ```yaml
+  x-override-rules:
+    version: v2.5.11
+    schema: "1"
+    generator: override-rules
+
+  mixed-port: 7890
+  ...
+  ```
+- 不影响：
+  - Clash 配置解析（`x-override-rules` 不是 clash 标准字段，所有 yaml 渲染器都会忽略或原样保留）
+  - 路由规则 / 代理组 / DNS / TUN（这些字段完全没动）
+  - task 1 / task 2 / task 3 的功能（已在同一次 build 里验证：苹果 DIRECT、Adobe REJECT、Autodsek 都在）
+- 验证：
+  - 3 层 fallback 三种场景全部 OK（env / package.json / "unknown"）
+  - `npx tsc --noEmit` exit 0
+  - `npm run build` exit 0
+  - mock 节点跑 `main()` + `yaml.stringify()`，顶部确实出现 `x-override-rules: { version: 2.5.10, schema: "1", generator: override-rules }`
+  - 极端场景（Sub-Store 端 yaml 库排序）也不会丢失 metadata，只是落到 yaml 末尾
+- 撤回：
+  - 从 `src/main.ts` 删 `VERSION/SCHEMA` 常量声明 + return 里的 `x-override-rules` 块
+  - 从 `src/types.ts` 删 `OverrideRulesMeta` 接口和 `ClashConfig["x-override-rules"]` 字段
+  - 从 `scripts/build.mjs` 删版本读取逻辑和 `define` 注入
+  - 从 `.github/workflows/release.yaml` 删 `env: OVERRIDE_RULES_VERSION: ...`
+- 第二阶段（暂缓，留待需要时再补）：
+  - `x-override-rules.commit`（短 SHA）
+  - `x-override-rules.build`（ISO 8601 时间戳）
+- verified_by:
+- author: ai
+
+
+## [2026-07-27] 新增：Autodsek 服务 proxy-group + rule-provider + 月度同步脚本
+- 开始：2026-07-27 10:35 UTC (UTC+0)
+- 结束：
+- 类型：新增 / 行为
+- 对象：
+  - `src/constants.ts`：新增 `AUTODESK: "Autodsek服务"`
+  - `src/proxy_groups.ts`：新增 `PROXY_GROUPS.AUTODESK` group（select 类型）
+  - `src/rule_providers.ts`：新增 `Autodesk` rule-provider
+  - `src/rules.ts`：新增引用 `RULE-SET,Autodesk,Autodsek服务`
+  - `scripts/sync-autodesk-list.sh`：新增（chmod +x，3 种用法）
+  - `ruleset/Autodesk.list`：新增（558 条裸域名，sed 已去 `+.` 前缀）
+  - cronjob `sync-override-rules-autodesk`：月度定时（每月 1 日 06:00 UTC），调脚本自动 commit ruleset/Autodesk.list
+- 原因：用户希望将 Autodesk 工具域名默认阻断，可选切代理/直连。结构与 Adobe 服务组完全对称。
+- 与 Adobe 服务组的区别（也是选 🅑 而非 🅓 的原因）：
+  - `autodesk.list` 上游格式是 `+.domain.com`（**domain-suffix 简写**），而 `adobe-activation.list` 是裸域名
+  - mihomo rule-provider `behavior: "domain"` 不能去 `+.` 前缀，必须**预处理**
+  - 预处理用本地脚本（`scripts/sync-autodesk-list.sh`）做，sed `s/^[[:space:]]*\.//` + sort -u + 拼头注释
+  - 因此选 plan B：本地副本 + 月度同步
+- 数据流：
+```
+MetaCubeX/meta-rules-dat@meta/geo/geosite/autodesk.list (官方源，557 行 +.domain)
+        │
+        │ scripts/sync-autodesk-list.sh （去 +. 前缀 + sort -u）
+        ▼
+ruleset/Autodesk.list （本地副本，558 条裸域名，月度 cron 自动更新）
+        │
+        │ 客户端 interval: 2592000 (=30天) 自动拉
+        ▼
+rule-provider: Autodesk （mihomo 缓存到 ./ruleset/Autodesk.list）
+        │
+        ▼
+RULE-SET,Autodesk,Autodsek服务  (rules.ts)
+        │
+        ▼
+proxy-group "Autodsek服务"   (proxies: ["REJECT", "选择代理", "DIRECT"])
+        │
+        ▼
+[ 高亮 REJECT = 阻断 ] [ 选择代理 ] [ DIRECT ]
+```
+- 关键决策：
+  - 远拉 vs 本地副本：**远拉不行**，只能本地副本（详因见上）
+  - cron 频率：月度（满足"定制任务"的要求）
+  - provider `interval: 2592000` (=30天)：与 cron 频率同步，避免被客户端拉取时再用旧内容刷新（潜在冲突）
+- 影响：
+  - 新增 UI 图标入口 "Autodsek服务"，默认高亮 REJECT（阻断）
+  - Autodesk 激活域名（123dapp.com / vredprofessional.com / xn--74q434dwff.net 等 558 条）走 REJECT
+  - 用户可在 "Autodsek服务" group 切到 "选择代理" / "DIRECT"
+- 不影响：现有任何 group / provider / 规则
+- 撤回：
+  - 从 `src/constants.ts` 删 `AUTODESK`、`src/proxy_groups.ts` 删 AUTODESK 块、`src/rule_providers.ts` 删 Autodesk provider、`src/rules.ts` 删引用
+  - 删 `scripts/sync-autodesk-list.sh` 和 `ruleset/Autodesk.list`
+  - cronjob action=remove job_id="9f433ab6d118"
+- verified_by:
+- author: ai
+
+
+## [2026-07-27] 新增：Adobe 服务 proxy-group + rule-provider（默认 REJECT，可选代理/直连）
+- 开始：2026-07-27 10:15 UTC (UTC+0)
+- 结束：
+- 类型：新增 / 行为
+- 对象：
+  - `src/constants.ts`：新增 `ADOBE: "Adobe服务"`
+  - `src/proxy_groups.ts`：新增 `PROXY_GROUPS.ADOBE` group（select 类型）
+  - `src/rule_providers.ts`：新增 `Adobe` rule-provider
+  - `src/rules.ts`：新增引用 `RULE-SET,Adobe,Adobe服务`
+- 原因：用户希望在客户端看到 "Adobe服务" 分组，默认阻断所有 Adobe 激活相关流量，仍允许用户在客户端手动切到代理/直连出口。源数据用上游 MetaCubeX/meta-rules-dat 官方维护的 `adobe-activation` geosite。
+- 数据源：https://github.com/MetaCubeX/meta-rules-dat/blob/meta/geo/geosite/adobe-activation.list
+  - 源格式：纯文本，每行一条裸域名（无 `DOMAIN-SUFFIX,` 前缀），共 133 行
+  - **远程直拉**（🅓 方案），不复制到本仓库；上游一改客户端 `interval: 86400` 自动跟
+- 修改：
+  - `PROXY_GROUPS.ADOBE`（proxy_groups.ts 新增，位置在 MICROSOFT 后、XBOX 前）：
+    - `type: "select"`
+    - `proxies: ["REJECT", "选择代理", "DIRECT"]` — 第 1 位是 REJECT = 默认阻断
+    - icon：`Koolson/Qure/IconSet/Color/Adobe.png`
+  - `rule-providers.Adobe`：
+    - `type: "http"` / `behavior: "domain"` / `format: "text"` / `interval: 86400`
+    - `url: ${CDN_URL}/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/adobe-activation.list`
+    - `path: ./ruleset/Adobe.list`（本地缓存路径，运行时 mihomo 写用，不入库）
+  - 引用：`RULE-SET,Adobe,Adobe服务`（rules.ts line 44，介于 `RULE-SET,GFWList` 与 `GEOIP,cn,DIRECT` 之间）
+- 关键决策（过程纠正记录）：
+  - 初版尝试：从 `sing/geo/geosite/adobe-activation.json`（sing-box 格式）抓数据自转 classical text — ❌ 重复造轮子
+  - 经查 MetaCubeX 官方在 `meta` 分支（mihomo）提供同源 `.list` / `.yaml` / `.mrs`，README 示例就是该分支；**直接远拉，是项目惯例的最优解**
+- 影响：
+  - 新增 UI 图标入口 "Adobe服务"，默认高亮 REJECT（阻断）
+  - Adobe 激活域名（3dns-*.adobe.com / activate*.adobe.com / lmlicenses-wip*.adobe.com 等）按客户端默认配置走 REJECT（直接拒绝连接，不重置不复用）
+  - 用户可在 "Adobe服务" 这个 group 里切到 "选择代理" / "DIRECT"，决定例外放行
+- 不影响：任何现有 group / provider / 规则
+- 撤回：删 `src/constants.ts` 那行 `ADOBE`、`src/proxy_groups.ts` 的 ADOBE 块、`src/rule_providers.ts` 的 Adobe provider、`src/rules.ts` 的引用即可
+- verified_by:
+- author: ai
+
+
+## [2026-07-27] 修改：苹果服务 / 微软服务 proxy-group 默认走 DIRECT，保留候选代理
+- 开始：2026-07-27 09:23 UTC (UTC+0)
+- 结束：
+- 类型：修改 / 行为
+- 对象：`src/proxy_groups.ts` 第 152、164 行（`PROXY_GROUPS.APPLE` 和 `PROXY_GROUPS.MICROSOFT` 两个 proxy-group 的 `proxies` 数组）
+- 原因：用户希望 apple/microsoft GEOSITE 域名默认走直连，但保留 UI 上手动切代理的能力。
+- 修改：
+  - `PROXY_GROUPS.APPLE`（line 152）：`proxies: defaultProxies` → `proxies: defaultProxiesDirect`
+  - `PROXY_GROUPS.MICROSOFT`（line 164）：`proxies: defaultProxies` → `proxies: defaultProxiesDirect`
+- 影响：
+  - 这两个组的 `proxies` 数组第一位由"选择代理"（指向 AUTO 自动选最低延迟节点）改成 `"DIRECT"`，所以 mihomo 客户端启动时默认高亮第一项 = DIRECT，即开箱直连
+  - 候选列表里仍包含 `<各国节点分组>`、`选择代理`、`手动选择`、`落地节点`（如有链式代理）等代理出口选项，用户在客户端可手动切回代理
+  - `GEOSITE,google-play@cn,DIRECT` 和 `GEOSITE,microsoft@cn,DIRECT` 这两条原本就写死的直连规则不受影响
+  - `PROXY_GROUPS.GOOGLE`（line 158）维持 `defaultProxies` 不动
+- 不影响：`src/rules.ts`（规则本身）、`src/selectors.ts`（候选列表构造逻辑）、`src/main.ts`、`package.json`、`AGENTS.md`
+- 撤回：把这两行改回 `proxies: defaultProxies` 即可
+- author: ai
+- verified_by:
+
 ## [2026-07-25] 修复：补一次发布 v2.5.10，让 MustDirect/MustProxy 真正生效
 
 - 开始：2026-07-25 00:27 UTC (UTC+0)
