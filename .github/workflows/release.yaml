@@ -141,12 +141,20 @@ jobs:
 
       - name: Generate Release Notes
         run: |
-          awk '/^#+ \[?[0-9]+\.[0-9]+\.[0-9]+/ { if (p) exit; p=1; next } p' CHANGELOG.md > RELEASE_NOTES.md
-          
+          # 用 git-cliff 直接生成当前 tag 区间的 release notes
+          # 不依赖 CHANGELOG.md 当前内容（CHANGELOG.md 由 scripts/changelog.mjs 手动维护，
+          # 在 release workflow 里没跑——awk 启发式会抽错段）
+          #
+          # --tag src-v${VERSION} 让 cliff 找上一个 src-v tag 作为起点
+          # （release.yaml 在 dist 分支打的 tag 是 ${VERSION} 不带 src- 前缀，
+          #   但 cliff 需要 src- 前缀去匹配历史，所以这里加回去）
+          # --no-exec 禁用 cliff 的 {{ ... }} 模板执行（我们的 body 里没有要 exec 的命令）
+          npx git-cliff --tag src-${{ env.VERSION }} --no-exec > RELEASE_NOTES.md
+
           cat >> RELEASE_NOTES.md << 'EOF'
-          
+
           ---
-          
+
           构建产物已同步并放于根目录。
 
           - JS 覆写 (最新版, 推荐)：`https://cdn.jsdelivr.net/gh/${{ github.repository }}/convert.min.js`

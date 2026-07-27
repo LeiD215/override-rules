@@ -1,24 +1,24 @@
 # Changelog
 
-## [Unreleased]
+## [2.5.11](https://github.com/powerfullz/override-rules/compare/src-v2.5.10...src-v2.5.11) (2026-07-27)
 
----
 
-## [2026-07-27] 物理迁移到 /opt/data/program/ 统一管理
+### Chores
 
-- 开始：2026-07-27（约10:30 CST）
-- 结束：2026-07-27（约10:32 CST）
-- 类型：同步（物理迁移）
-- 对象：本项目根目录
-- 原因：用户将分散在 `/opt/data/Hermes优化/`、`/opt/data/override-rules/`、`/opt/data/tempdata/blackbox-project-record/`、`/opt/data/tempdata/GUI.for.Xray/` 的4个项目集中迁移到 `/opt/data/program/` 下统一管理
-- 影响：
-  - 原路径 `/opt/data/override-rules/` → 新路径 `/opt/data/program/override-rules/`
-  - Hermes project DB 登记 slug：`override-rules`，id：`p_76fd2a9a`
-- 验证：通过 `ls /opt/data/program/` 确认5个项目均在场
-- 撤回：否
+- 月度同步 Autodesk 域名清单 + 同步脚本 ([e0b2de4](https://github.com/powerfullz/override-rules/commit/e0b2de4fb74f90a961b20b0cbaf4f2f517ec1c94))
 
----
 
+### Documentation
+
+- 4 个 task 的 fork 内部变更日志（私有） ([24281ad](https://github.com/powerfullz/override-rules/commit/24281ad6d68ed555a9d2851ccd6353ee3fe9c0c9))
+- 记录本仓库物理迁移到 /opt/data/program/ 与 Hermes 占位标记 ([7e6898c](https://github.com/powerfullz/override-rules/commit/7e6898c32ac1efef92068a1ecfa400d9f228be32))
+- Record v2.5.10 release that activates MustDirect/MustProxy ([916ec41](https://github.com/powerfullz/override-rules/commit/916ec4129494f9eb469ca9934080a9693562e0f2))
+
+
+### Features
+
+- 输出 yaml 顶部加 x-override-rules 元信息 namespace ([7874a53](https://github.com/powerfullz/override-rules/commit/7874a5314aaff7962fc3f9537d1fd8b2e2e779e4))
+- 自定义 4 个服务组的默认策略 ([1e0a376](https://github.com/powerfullz/override-rules/commit/1e0a376cec9753ec6e18067de9e55102d9863f79))
 ## [2.5.10](https://github.com/powerfullz/override-rules/compare/src-v2.5.9...src-v2.5.10) (2026-07-25)
 
 
