@@ -649,17 +649,40 @@ proxy-group "Autodsek服务"   (proxies: ["REJECT", "选择代理", "DIRECT"])
   1. 改 `Skill` 提示词让 AI 自觉—— 否决（skill 提示词对模型是概率信号不是强制约束）
   2. 加 pre-commit hook 检查 src/icons 改动伴随 CHANGELOG 改动—— ✓ 选中（命中规则 13 工具链层强制约束）
   3. 加 server 端 webhook 拒收 commit—— 否决（项目没私有 CI；增加复杂度；任何 push-block 都有方法绕过）
-  理由：方案 2 是 git 自带的本地 hook、零额外依赖、每次 commit 都跑。**而且这个 commit 本身也必须被 hook 接受**——所以这个 commit 完全不动 src/icons（只动 .husky/pre-commit + package.json + _fork/SOP.md），让 hook 自己放行自己。
+- 理由：方案 2 是 git 自带的本地 hook、零额外依赖、每次 commit 都跑。**而且这个 commit 本身也必须被 hook 接受**——所以这个 commit 完全不动 src/icons（只动 .husky/pre-commit + package.json + _fork/SOP.md），让 hook 自己放行自己。
 - 修改：
   - `.husky/pre-commit` 新增一道 check（在 lint-staged 之前跑）：若 `git diff --cached -- src/ icons/` 有改动、且 `_fork/CHANGELOG.md` 这次没有 staged 改动，就 exit 1（带明确错误信息指过去 SOP 怎么写）。**带 `--no-verify` 逃生口**
   - `package.json` 新增 `record:blackbox` script（一个 stub，仅 echo 提醒"记得手写 CHANGELOG.md"——不替代思考，只降门槛）
   - `_fork/SOP.md` 新增"硬约束"章节，说明 hook 怎么用、`--no-verify` 何时合理
+  - `_fork/STATUS.md` 盲点表 8 解决（强制记录已实装）
 - 验证：
-  - hook 是否挡得住：手动构造"只改 src 不改 CHANGELOG"的 staging，commit → 应 exit 1
-  - hook 是否放行合法：本次 commit（只动 hook 本身 + SOP + package.json scripts）→ 应 exit 0
-  - `--no-verify` 是否生效：手动 `--no-verify` commit 应通过
-  - `record:blackbox` script 是否可调用
+  - hook 是否挡得住：手动构造"只改 src 不改 CHANGELOG"的 staging，commit → 应 exit 1 ✅ 实测命中，错误信息完整
+  - hook 是否放行合法：本次 commit（只动 hook 本身 + SOP + package.json scripts）→ 应 exit 0 ✅ 实测通过
+  - 反向验证：同时 stage src/ 和 CHANGELOG → 应 exit 0 ✅ 实测通过
+  - `--no-verify` 逃生口：手动 `--no-verify` commit 应通过 ✅
 - 影响：从此**任何 src/icons 改动必须伴随 CHANGELOG 改动**，否则 commit 失败。**这就把"agent 忘了记"这个失效模式从概率层消除**。
 - 撤回：是（如果日后 hook 本身过严/误报，可以 commit `fix(husky): 放宽 pre-commit 检查` 删除或调整，CHANGELOG 中通过新条目关联回本条）
+- author: ai
+- verified_by:
+
+## [2026-07-27 ~13:05 UTC] 测试 + 撤回：pre-commit hook 的双向验证
+
+- 开始：~2026-07-27 13:05 UTC (UTC+0)
+- 结束：~2026-07-27 13:05 UTC (UTC+0)
+- 类型：测试 / 撤回
+- 对象：临时 src/main.ts 测试 marker + _fork/CHANGELOG.md 临时一行 + 测试 commit `907edf3`（已被 `git reset --hard HEAD~1` 撤回）
+- 原因（命中规则 3）：hook 防御纵深的第 1 层实装后需要真实验证——验证两种场景：(a) 只动 src/ 不动 CHANGELOG → hook 应 exit 1；(b) 两者一起动 → hook 应 exit 0。验证需要临时改 src/main.ts 加 marker、临时 commit、再 hard reset 撤回，期间尝试 (a)(b) 两种 commit 路径。
+- 测试结果：
+  - 场景 (a) — 只 stage src/main.ts、commit → hook exit 1、错误信息含完整 SOP 引用 ✅
+  - 场景 (b) — 同时 stage src/main.ts + _fork/CHANGELOG.md、commit → hook exit 0 + lint-staged 跑过 → commit 907edf3 成功 ✅
+- 修改：
+  - 临时：src/main.ts 追加两行 `// test_change_marker_...` 注释
+  - 临时：_fork/CHANGELOG.md 追加 `// test_change: ...` 一行（满足 hook 要求、避免误判）
+  - 临时 commit 907edf3（含 src + CHANGELOG 改动）
+- 撤回：
+  - `git restore --staged src/main.ts && git restore src/main.ts` 撤回测试改动
+  - `git reset --hard HEAD~1` 撤回测试 commit 907edf3（命中规则 3：撤回本次决定而非抹掉记录——本条 CHANGELOG 留作撤回说明）
+- 影响：无（测试本身不该留任何功能性改动；hook 行为已通过本批"重构"条目 commit `d81c249` 落地）
+- 撤回：是（测试 commit 本身已被撤回；本条 CHANGELOG 是它的"撤回记录"）
 - author: ai
 - verified_by:
