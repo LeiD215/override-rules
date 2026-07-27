@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased]
+
+---
+
+## [2026-07-27] 物理迁移到 /opt/data/program/ 统一管理
+
+- 开始：2026-07-27（约10:30 CST）
+- 结束：2026-07-27（约10:32 CST）
+- 类型：同步（物理迁移）
+- 对象：本项目根目录
+- 原因：用户将分散在 `/opt/data/Hermes优化/`、`/opt/data/override-rules/`、`/opt/data/tempdata/blackbox-project-record/`、`/opt/data/tempdata/GUI.for.Xray/` 的4个项目集中迁移到 `/opt/data/program/` 下统一管理
+- 影响：
+  - 原路径 `/opt/data/override-rules/` → 新路径 `/opt/data/program/override-rules/`
+  - Hermes project DB 登记 slug：`override-rules`，id：`p_76fd2a9a`
+- 验证：通过 `ls /opt/data/program/` 确认5个项目均在场
+- 撤回：否
+
+---
+
 ## [2.5.10](https://github.com/powerfullz/override-rules/compare/src-v2.5.9...src-v2.5.10) (2026-07-25)
 
 
