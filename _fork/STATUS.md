@@ -45,6 +45,9 @@ dist 分支: https://github.com/LeiD215/override-rules/tree/dist
 | 之前 release workflow 没集成 git-cliff，靠 awk 抽 CHANGELOG 第一个数字版本号标题，导致 fork 5 commit 漏显示、CHANGELOG 日期段被当作"未受管" | 已解决（v2.5.12 release.yaml "Generate Release Notes" step 改为 `npx git-cliff --tag src-$VERSION --no-exec > RELEASE_NOTES.md`） |
 | Autodesk 服务图标缺失（convert.min.js ADOBE/AUTODESK icon URL 引用 Koolson/Qure IconSet/Color/Adobe.png 等，但这些文件在上游并不存在） | 已解决（v2.5.13 fork 自身 icons/Adobe.png + icons/Autodesk.png，引用改为 `@main/icons/...`） |
 | scripts/build.mjs 在 prettier --check 下报警（4 行 const 写法不符合 prettier 行宽，被 prettier --write 改成单行 const） | 未解决（不影响功能；未提交过修改；决定先不动 — 若未来 prettier --write 自动改也没影响） |
+| `ruleset/MustReject.list` 改名后未感知：ruleset/ 目录不在 src/ 或 icons/ 下，但 v2.5.14 加新 rule-provider（MustReject）时，CI 端 `release.yaml` 的 `Validate source` step 只跑 typecheck+format+lint，没验证 `src/rule_providers.ts` 里的新 provider key 跟 `ruleset/*.list` 文件名一致；未来如果重命名 `.list` 但忘了同步 `src/rule_providers.ts` 会沉默上线 | 未解决 |
+| pre-commit hook 覆盖范围不全，漏检 ruleset/ 目录：当前 `.husky/pre-commit` 只对 `src/` 和 `icons/` 改动强制伴生 `_fork/CHANGELOG.md`；`ruleset/*.list` 改动（例 v2.5.14 的 6 条 MaaS/DeepSeek/MiniMax + 2 条 tuna/aliyun）完全无强制记录机制，只能靠 lint-staged prettier 自动跑（前提是文件能被 prettier 解析——`.list` 当前不在 prettier config 里所以也跑不到），存在"改了 ruleset 又忘记写 CHANGELOG"的静默路径 | 未补 |
+| 缺一个架构 ADR 说明 pre-commit hook 为什么只覆盖 src/ + icons/，以及 ruleset/ 是否也需要纳入：决定本身有"业务规则源码 vs 数据清单"的二分考量（src/ 是代码，ruleset/ 是数据），但 fork 没有正式记录这个判断，未来维护者（人或 agent）接手时容易重复踩坑 | 未补 |
 | `_fork/CHANGELOG.md` 今天 5 commit + 3 release + 2 issue 修复 + 1 图标修复的私有记录全部脱记超过 3 小时 | 已解决（2026-07-27 12:55 UTC 用户追问后批量补记） |
 | 接管过期软锁：之前 STATUS.md 的 "🔒 占用中" 标记从 09:23 UTC 起占着、TTL 30 分钟早过、打算做的"改 Apple/Microsoft 服务组默认走 DIRECT"实际早就完成并覆盖到 commit 1e0a376，但锁没有清（被 task 1 的 commit 隐式完成） | 已解决（已接管并刷新标记；新建 task 标记"补记"，已落盘所有脱记记录） |
 

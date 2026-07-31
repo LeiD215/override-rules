@@ -6,6 +6,48 @@
 
 ## [Unreleased]
 
+## [2026-07-31] 提醒：jsDelivr `.list` 缓存延迟，下次发布前手动 purge
+- 开始：2026-07-31 02:50 UTC (UTC+0)
+- 结束：2026-07-31 02:50 UTC (UTC+0)
+- 类型：提醒 / 流程经验
+- 对象：无（pure 文档记录）
+- 原因：
+  - v2.5.14 push + Actions 完成后，jsDelivr 上 `convert.min.js` 立刻是 v2.5.14
+    （因为 v2.5.14 tag 是新路径，不缓存），但 `ruleset/MustDirect.list` /
+    `MustProxy.list` / `MustReject.list` 这些走 `@main` 分支的 `.list`
+    文件**有几秒到几分钟不等的缓存延迟**，期间客户端拉到的是旧版；
+  - 本次实测：
+    - `MustDirect.list`：purge 1 次 + 等待约 1 分钟才生效
+    - `MustProxy.list`：连续 5 次 purge（间隔 10 秒）仍未刷新，第 6 次再
+      purge + 等待 8 秒后才生效
+    - `MustReject.list`：空文件，无验证需求
+  - 这是因为 jsDelivr 的 CDN 节点（CF + FY 两层）缓存刷新是异步 fan-out
+    过程，多次 purge 实际上是触发多次 fan-out 加速，而不是"一次性强制刷新"。
+- 修改：
+  - `_fork/CHANGELOG.md`：本条提醒记录
+  - `_fork/STATUS.md` 已知盲点表：新增 3 条（rule-provider key vs .list
+    文件名一致性缺 CI 校验 + pre-commit hook 漏检 ruleset/ + 缺 hook
+    范围 ADR），均标"未解决/未补"
+- 验证：
+  - 已在 push 后用 `curl -sL https://cdn.jsdelivr.net/gh/LeiD215/override-rules@main/ruleset/Must{Direct,Proxy,Reject}.list`
+    反复确认，最终 3 个 `.list` 全部 CDN 上是新内容（MustDirect 6 条 /
+    MustProxy 3 条 / MustReject 空）
+  - `curl -I https://cdn.jsdelivr.net/gh/LeiD215/override-rules@v2.5.14/convert.min.js`
+    返回 `x-jsd-version: 2.5.14`，与发布版本一致
+- 影响：
+  - **下次发布若涉及 `ruleset/*.list` 改动**，在 `git push origin src-vX.Y.Z`
+    之前手动 purge 一次相关 `.list`，避免客户端在缓存期内拉到旧版：
+    ```bash
+    # 示例：发布前手动 purge 受影响的 .list
+    for f in MustDirect.list MustProxy.list MustReject.list; do
+      curl -sL -m 30 "https://purge.jsdelivr.net/gh/LeiD215/override-rules@main/ruleset/${f}" >/dev/null
+    done
+    # 等待 30-60 秒让 CDN 节点 fan-out，再继续 push
+    ```
+  - `convert.min.js` 走 tag 路径，**无需 purge**，tag 本身是新路径
+- 撤回：本条提醒不需要撤回；如果将来 jsDelivr 缓存策略变了，调整脚本模板即可
+- author: ai
+
 ## [2026-07-31] 调整：Adobe / Autodesk 规则位置上移到 MustProxy 之后
 - 开始：2026-07-31 02:24 UTC (UTC+0)
 - 结束：2026-07-31 02:25 UTC (UTC+0)
