@@ -34,6 +34,15 @@ export const ruleProviders: Record<string, RuleProvider> = {
     },
     // 强制覆盖名单：优先级高于所有业务规则（广告拦截、GFWList、服务专属分组等），
     // 但低于私有内网直连（保留内网安全兜底）。
+    // 三个按"严格程度由高到低"排列：Reject（阻断）> Direct（直连）> Proxy（强制代理）。
+    MustReject: {
+        type: "http",
+        behavior: "classical",
+        format: "text",
+        interval: 86400,
+        url: `${CDN_URL}/gh/LeiD215/override-rules@main/ruleset/MustReject.list`,
+        path: "./ruleset/MustReject.list",
+    },
     MustDirect: {
         type: "http",
         behavior: "classical",

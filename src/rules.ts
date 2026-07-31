@@ -3,7 +3,9 @@ import { PROXY_GROUPS } from "./constants";
 const baseRules = [
     `DST-PORT,22,${PROXY_GROUPS.SSH}`,
     `GEOIP,private,DIRECT,no-resolve`,
-    // 强制覆盖名单：优先级高于所有业务规则，但低于私有内网直连
+    // 强制覆盖名单：优先级高于所有业务规则，但低于私有内网直连。
+    // 三个按"严格程度由高到低"排列：Reject（阻断）> Direct（直连）> Proxy（强制代理）。
+    `RULE-SET,MustReject,REJECT`,
     `RULE-SET,MustDirect,DIRECT`,
     `RULE-SET,MustProxy,${PROXY_GROUPS.SELECT}`,
     `RULE-SET,ADBlock,${PROXY_GROUPS.AD_BLOCK}`,

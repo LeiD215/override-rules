@@ -6,6 +6,45 @@
 
 ## [Unreleased]
 
+## [2026-07-31] 新增：MustReject 强制阻断名单 + 阿里云/DeepSeek/MiniMax 域名分组
+- 开始：2026-07-31 00:36 UTC (UTC+0)
+- 结束：2026-07-31 00:38 UTC (UTC+0)
+- 类型：新增 / 内容
+- 对象：
+  - `src/rule_providers.ts`：新增 `MustReject` rule-provider 块（与 MustDirect / MustProxy 同样的 http + classical + text 形态）
+  - `src/rules.ts`：在 `GEOIP,private,DIRECT,no-resolve` 之后、`RULE-SET,MustDirect,DIRECT` 之前插入 `RULE-SET,MustReject,REJECT`
+  - `ruleset/MustReject.list`：新建（带格式说明注释，本次为空内容，预留机制）
+  - `ruleset/MustDirect.list`：追加 3 条（`cn-beijing.maas.aliyuncs.com` / `api.deepseek.com` / `api.minimaxi.com`）
+  - `ruleset/MustProxy.list`：追加 3 条（`dashscope-us.aliyuncs.com` / `ap-southeast-1.maas.aliyuncs.com` / `ap-northeast-1.maas.aliyuncs.com`）
+- 原因：
+  - 用户希望把"在国内使用 Sub-Store + mihomo"场景下经常访问的 AI API 域名按"国内 endpoint 直连、海外 endpoint 必须代理"分组打散到现有强制覆盖框架里，避免被 `GEOIP,cn` 或 `GEOSITE,google` 等业务规则误处理
+  - 同时建立 `MustReject` 机制，作为通用"强制阻断"层（出口 = `REJECT`），与现有的 `MustDirect`（直连）、`MustProxy`（必须代理）形成三层强制覆盖体系，后续可在不改动代码的前提下往 `.list` 里加内容
+- 关键设计决策：
+  - **三个 provider 在 rule-providers.ts 里按"严格程度由高到低"排列**：MustReject（阻断）> MustDirect（直连）> MustProxy（必须代理）。这只是字典顺序，**实际路由顺序由 rules.ts 里规则的位置决定**，与 provider 块位置无关
+  - **rules.ts 里的插入位置**：紧跟 `GEOIP,private` 之后、`MustDirect` 之前。这意味着私有内网直连 > 强制阻断 > 强制直连 > 强制代理 > 一切业务规则
+  - **为什么 MustReject 排在 MustDirect 之前**：如果用户某天想阻断"强制直连"也拦不住的东西（例如某个被 hijack 风险的 CDN），阻断比"直连"更安全，所以 Reject 优先
+  - **为什么 MustReject 必须排在 GEOIP,private 之后**：保留"私有内网安全兜底"语义——即使 MustReject.list 误把内网 IP 列入，内网仍能直连
+  - **行为**：`DOMAIN-SUFFIX,aliyuncs.com` 这种字面域名不会触发，因为我们用的是精确 suffix（如 `cn-beijing.maas.aliyuncs.com`），不会误伤 `aliyuncs.com` 下的其他服务（如 `oss.aliyuncs.com`、`cr.console.aliyuncs.com` 等）
+- 验证：
+  - `npx tsc --noEmit`：exit 0
+  - `npm run build`：exit 0，重新生成 `convert.min.js`（21202 字节，相比上次 20999 增 +203 字节，符合新增 provider 期望）
+  - 产物验证：`convert.min.js` 中 `MustReject` / `MustDirect` / `MustProxy` 各出现 4 次（rule-providers 字段定义 + rules 字段引用 + 字符串模板 + 其它 re-build 路径），数量一致
+  - 规则顺序验证：`convert.js` 源码中按 `GEOIP,private -> MustReject -> MustDirect -> MustProxy -> ADBlock` 排列，符合预期
+  - 文件存在性验证：`ruleset/MustReject.list` 已创建（464 字节，仅注释，空内容）
+- 不影响：
+  - 现有 ADOBE / AUTODESK 服务组、MyDirectCDN、GFWList、ADBlock 等业务规则位置、行为
+  - 私有内网直连（GEOIP,private）优先级
+  - 任何 proxy-group 的 proxies 列表
+- 撤回：
+  - 从 `src/rule_providers.ts` 删 MustReject 块
+  - 从 `src/rules.ts` 回退到 `RULE-SET,MustDirect,DIRECT` 是第 4 条的状态
+  - `rm ruleset/MustReject.list`
+  - 从 `ruleset/MustDirect.list` 删 3 条
+  - 从 `ruleset/MustProxy.list` 删 3 条
+- verified_by: git status (pre-commit); 详见上面"验证"段
+- author: ai
+
+
 ## [2026-07-27] 新增：生成 yaml 的版本元信息（x-override-rules namespace）
 - 开始：2026-07-27 11:30 UTC (UTC+0)
 - 结束：
