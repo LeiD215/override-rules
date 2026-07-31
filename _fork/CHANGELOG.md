@@ -6,6 +6,39 @@
 
 ## [Unreleased]
 
+## [2026-07-31] 修复：package.json version 对齐到 v2.5.14
+- 开始：2026-07-31 02:55 UTC (UTC+0)
+- 结束：2026-07-31 02:58 UTC (UTC+0)
+- 类型：修复 / 文档
+- 对象：`package.json` 的 `version` 字段
+- 原因：
+  - 历史状态：`package.json` 上次被 bump 是在 v2.5.12 release 时（commit 3c98b70，
+    L732 记录），版本被写成 `2.5.11`；v2.5.13 release 时未继续 bump；
+  - 后果：本地 `package.json` 长期停在 `2.5.11`，但 main 分支已发到 v2.5.14；
+  - 影响：
+    - `scripts/build.mjs` 的 3 层 version fallback 链中，package.json 是 L2
+      fallback（优先级：① `OVERRIDE_RULES_VERSION` env ② `package.json.version` ③ `"unknown"`）；
+    - Actions release 流程走 L1（env 注入 tag 名称），**客户端实际看到的版本号**始终是对的；
+    - 但**本地 build**（无 env）会拿到 `2.5.11`，与最新 tag `v2.5.14` 不一致；
+    - 状态不一致让接手 fork 的人困惑（"明明是 v2.5.14 仓库为什么 version 是 2.5.11"）；
+  - 修复方式：手动改 `package.json.version` 从 `2.5.11` → `2.5.14`，对齐到最新发布版本。
+- 修改：
+  - `package.json` L4：`"version": "2.5.11"` → `"version": "2.5.14"`
+  - 不跑 `npm version`（避免触发 `scripts/changelog.mjs` 重生成根 `CHANGELOG.md`，也避免 `postversion` 自动 push tag）
+  - 不打 src-v2.5.14 tag（已经存在）
+- 验证：
+  - `npx tsc --noEmit` exit 0
+  - `npm run build` exit 0，build log 显示 `override-rules@2.5.14 build`
+  - 本地 build 的 `convert.min.js` 中 `x-override-rules.version` 在 esbuild 压缩后被编译成短变量 `ae`（运行时通过 `JSON.parse` 还原为 `"2.5.14"`，与 Actions 注入值一致）
+  - `convert.min.js` 字节数 21202（与上次 build 一致；version 字符串字节数未变）
+  - 本地 build 的产物不入 git（`.gitignore` 含 `convert.js` 和 `convert.min.js`），仅作为构建正确性验证
+- 影响：
+  - 本地 build 现在 fallback 到 `2.5.14`（之前是 `2.5.11`），与 Actions 输出一致
+  - 后续 `npm version patch` 会从 `2.5.14` → `2.5.15`，符合 semver
+  - 副作用：无（不触发 git-cliff / npm postversion / tag）
+- 撤回：`git revert <这次 commit>` 或手动改回 `2.5.11`
+- author: ai
+
 ## [2026-07-31] 提醒：jsDelivr `.list` 缓存延迟，下次发布前手动 purge
 - 开始：2026-07-31 02:50 UTC (UTC+0)
 - 结束：2026-07-31 02:50 UTC (UTC+0)
