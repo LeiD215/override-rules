@@ -6,6 +6,44 @@
 
 ## [Unreleased]
 
+## [2026-07-31] 新增：清华 TUNA + 阿里云镜像源 强制直连
+- 开始：2026-07-31 01:41 UTC (UTC+0)
+- 结束：2026-07-31 01:46 UTC (UTC+0)
+- 类型：新增 / 内容
+- 对象：`ruleset/MustDirect.list`
+- 原因：
+  - 测试机走旁路由 OpenClash，使用 `archive.ubuntu.com` 官方源正常，
+    但清华源（`mirrors.tuna.tsinghua.edu.cn`）和阿里源（`mirrors.aliyun.com`）
+    此前均落入 FINAL 代理组，导致连接异常；
+  - 经旁路由实际抓包与时延对比，确认两个镜像源走直连明显更优：
+    直连出清华 BGP/阿里云 CDN，避开代理绕路；
+  - 必须加入强制直连名单，避免 FINAL 代理组兜底时再次落入代理。
+- 修改：
+  - `ruleset/MustDirect.list` 末尾追加 2 条：
+    - `DOMAIN-SUFFIX,tuna.tsinghua.edu.cn`
+    - `DOMAIN-SUFFIX,mirrors.aliyun.com`
+  - 选用 `mirrors.aliyun.com`（不是 `aliyun.com`）避免误伤
+    `help.aliyun.com` / `*.console.aliyun.com` / `oss-*.aliyuncs.com`
+    等非镜像的阿里云服务；
+  - 选用 `tuna.tsinghua.edu.cn`（不是 `mirrors.tuna.tsinghua.edu.cn`）
+    自动覆盖主域、`mirrors4.*` / `mirrors6.*` / `pypi.*` 等所有 `*.tuna.tsinghua.edu.cn`
+    子域（已通过 DNS 反查确认 `pypi.tuna.tsinghua.edu.cn` 与主域解析到
+    同一 CNAME `bfdmirrors.s.tuna.tsinghua.edu.cn`）。
+- 验证：
+  - `npx tsc --noEmit` exit 0
+  - `npm run build` exit 0
+  - `convert.min.js` 大小 21202 bytes（与上一次一致；纯数据文件改动不影响产物代码，
+    实际生效需要 CDN 上的 `ruleset/MustDirect.list` 被刷新；本地仅 commit，未 push）
+  - `grep` 验证构建产物仍含 4 处 `MustDirect` 引用、4 处 `MustReject`、4 处 `MustProxy`
+  - `git diff` 干净：仅 `+DOMAIN-SUFFIX,tuna.tsinghua.edu.cn` 和 `+DOMAIN-SUFFIX,mirrors.aliyun.com` 两行
+- 影响：
+  - 客户端拉 `https://cdn.jsdelivr.net/gh/LeiD215/override-rules@main/ruleset/MustDirect.list`
+    后，命中 tuna/aliyun 镜像域名的请求直接走 DIRECT；
+  - 用户在国内使用 mihomo，预计延迟明显降低（直连 vs 走代理绕路）；
+  - 副作用：极少，仅命中 `*.tuna.tsinghua.edu.cn` 与 `*.mirrors.aliyun.com` 子域。
+- 撤回：删除这两条 `DOMAIN-SUFFIX,` 即可，无需其它改动。
+- author: ai
+
 ## [2026-07-31] 新增：MustReject 强制阻断名单 + 阿里云/DeepSeek/MiniMax 域名分组
 - 开始：2026-07-31 00:36 UTC (UTC+0)
 - 结束：2026-07-31 00:38 UTC (UTC+0)
