@@ -6,6 +6,46 @@
 
 ## [Unreleased]
 
+## [2026-07-31] 调整：Adobe / Autodesk 规则位置上移到 MustProxy 之后
+- 开始：2026-07-31 02:24 UTC (UTC+0)
+- 结束：2026-07-31 02:25 UTC (UTC+0)
+- 类型：调整 / 内容
+- 对象：`src/rules.ts`
+- 原因：
+  - `RULE-SET,Adobe,${PROXY_GROUPS.ADOBE}` 和 `RULE-SET,Autodesk,${PROXY_GROUPS.AUTODESK}`
+    原来放在 `RULE-SET,GFWList` 之后、`GEOIP,cn` 之前（即所有业务规则的最后两条）；
+  - 这个位置存在隐患：万一上游 Loyalsoldier/clash-rules 或 powerfullz/override-rules
+    在 GFWList 里加入 `adobe.com` / `autodesk.com` 相关域名，Adobe/Autodesk
+    名单就会失效，被 GFWList 抢先（SELECT 代理组）；
+  - 用户希望 Adobe/Autodesk 跟强制覆盖名单平起平坐，提到 MustProxy 之后
+    获得最高业务优先级。
+- 修改：
+  - `src/rules.ts`：把 `RULE-SET,Adobe,...` 和 `RULE-SET,Autodesk,...` 两行
+    从原位置（原 L46-47）删除，插入到 `RULE-SET,MustProxy,...` 之后、
+    `RULE-SET,ADBlock,...` 之前（原 L11 之后）；
+  - 加注释说明顺序理由（被 GFWList 抢先的风险）；
+  - 新顺序：`MustReject` → `MustDirect` → `MustProxy` → `Adobe` → `Autodesk` → `ADBlock` → ...
+    → ... → `GFWList` → `GEOIP,cn` → `MATCH`。
+- 验证：
+  - `npx tsc --noEmit` exit 0
+  - `npm run build` exit 0
+  - `convert.min.js` 字节数 21202（顺序调整不改大小，符合预期）
+  - 通过 `dd` dump `convert.min.js` 字节 13550-15050 区段，rules 数组
+    解压后实际顺序与源文件一致：`RULE-SET,MustReject` → `MustDirect` →
+    `MustProxy` → `Adobe` → `Autodesk` → `ADBlock` → ... → `GFWList` →
+    `GEOIP,cn` → `MATCH`
+  - ADOBE / AUTODESK proxy-group 配置未改（`src/proxy_groups.ts` 未动）：
+    仍为 `select` 类型，`proxies: [REJECT, SELECT, DIRECT]`，默认走 REJECT
+  - 未触动 GEOIP,cn 兜底；GEOIP,cn 不命中 adobe/autodesk 域名（海外服务）
+- 影响：
+  - 客户端拉新 `convert.min.js` 后，命中 Adobe 名单的流量**不再被 GFWList 抢先**，
+    始终走 ADOBE proxy-group（用户可手动切 REJECT 或 SELECT）；
+  - 命中 Autodesk 名单的流量同样保证走 AUTODESK proxy-group；
+  - 副作用：无正向副作用（GFWList 当前不包含 adobe.com）。
+- 撤回：
+  - 把这两行从 MustProxy 之后移回原位置（GFWList 之后、`GEOIP,cn` 之前）即可。
+- author: ai
+
 ## [2026-07-31] 新增：清华 TUNA + 阿里云镜像源 强制直连
 - 开始：2026-07-31 01:41 UTC (UTC+0)
 - 结束：2026-07-31 01:46 UTC (UTC+0)

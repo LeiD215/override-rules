@@ -8,6 +8,13 @@ const baseRules = [
     `RULE-SET,MustReject,REJECT`,
     `RULE-SET,MustDirect,DIRECT`,
     `RULE-SET,MustProxy,${PROXY_GROUPS.SELECT}`,
+    // Adobe / Autodesk：跟 MyDirectCDN 一样是"用户希望锁定"的特定服务
+    // 名单，优先级应跟强制覆盖名单平起平坐（命中 → ADOBE/AUTODESK group；
+    // 实际走 REJECT 还是 SELECT 由用户在客户端手动切换）。原来放在
+    // GFWList 之后、GEOIP,cn 之前，万一上游 GFWList 加入 adobe.com
+    // 会导致 Adobe 名单失效；提到 MustProxy 之后就不会被业务规则抢先。
+    `RULE-SET,Adobe,${PROXY_GROUPS.ADOBE}`,
+    `RULE-SET,Autodesk,${PROXY_GROUPS.AUTODESK}`,
     `RULE-SET,ADBlock,${PROXY_GROUPS.AD_BLOCK}`,
     `RULE-SET,AdditionalFilter,${PROXY_GROUPS.AD_BLOCK}`,
     `RULE-SET,SogouInput,${PROXY_GROUPS.SOGOU_INPUT}`,
@@ -43,8 +50,6 @@ const baseRules = [
     `GEOSITE,google,${PROXY_GROUPS.GOOGLE}`,
     `RULE-SET,Crypto,${PROXY_GROUPS.CRYPTO}`,
     `RULE-SET,GFWList,${PROXY_GROUPS.SELECT}`,
-    `RULE-SET,Adobe,${PROXY_GROUPS.ADOBE}`,
-    `RULE-SET,Autodesk,${PROXY_GROUPS.AUTODESK}`,
     `GEOIP,cn,DIRECT`,
     `MATCH,${PROXY_GROUPS.FINAL}`,
 ];
