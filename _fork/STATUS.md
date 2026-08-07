@@ -15,21 +15,23 @@
 ```yaml
 仓库地址: https://github.com/LeiD215/override-rules
 上游地址: https://github.com/powerfullz/override-rules
-最新已发布版本: v2.5.14（2026-07-31 发布；dist 分支对应的 convert.min.js）
-main 分支最新提交: 4680cfa（feat(proxy-groups): GITHUB / TELEGRAM / SSH 默认连接改为手指定；未发布 v2.5.15）
+最新已发布版本: v2.5.15（2026-08-07 发布；dist 分支对应的 convert.min.js）
+main 分支最新提交: 930ee7b（dist HEAD = v2.5.15 tag；src HEAD = caa007b「feat(proxy-groups): GITHUB / TELEGRAM / SSH 默认连接改为手指定」）
 远端 tag:
-  - src-v2.5.14（最新 src tag，HEAD）
+  - src-v2.5.15（最新 src tag，指向 caa007b）
+  - src-v2.5.14
   - src-v2.5.13
   - src-v2.5.12
   - src-v2.5.11
   - src-v2.5.10 及更早
+  - v2.5.15（dist 分支，最新发布；指向 930ee7b）
   - v2.5.14（dist 分支）
   - v2.5.13（dist 分支）
   - v2.5.12（dist 分支）
   - v2.5.11（dist 分支）
-  - [待 release] src-v2.5.15：本地新 commit 4680cfa 已含 src 改动，准备打 tag
 最终产出链接: https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js
 dist 分支: https://github.com/LeiD215/override-rules/tree/dist
+GitHub Release: https://github.com/LeiD215/override-rules/releases/tag/v2.5.15
 维护者: Hermes Agent（LeiD998），GitHub 账号 LeiD215
 接手日期: 2026-07-21
 记录体系: blackbox（2026-07-24 从 logbook 迁移）
