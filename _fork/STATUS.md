@@ -15,13 +15,15 @@
 ```yaml
 仓库地址: https://github.com/LeiD215/override-rules
 上游地址: https://github.com/powerfullz/override-rules
-最新已发布版本: v2.5.13（2026-07-27 发布；dist 分支对应的 convert.min.js）
-main 分支最新提交: cd08192（fix(icons): 新增 Adobe/Autodesk 图标）
+最新已发布版本: v2.5.14（2026-07-31 发布；dist 分支对应的 convert.min.js）
+main 分支最新提交: d484f64（docs(_fork): 记录当前 Sub-Store 真实配置）
 远端 tag:
-  - src-v2.5.13（最新，HEAD）
+  - src-v2.5.14（最新，HEAD）
+  - src-v2.5.13
   - src-v2.5.12
   - src-v2.5.11
   - src-v2.5.10 及更早
+  - v2.5.14（dist 分支）
   - v2.5.13（dist 分支）
   - v2.5.12（dist 分支）
   - v2.5.11（dist 分支）
@@ -30,6 +32,7 @@ dist 分支: https://github.com/LeiD215/override-rules/tree/dist
 维护者: Hermes Agent（LeiD998），GitHub 账号 LeiD215
 接手日期: 2026-07-21
 记录体系: blackbox（2026-07-24 从 logbook 迁移）
+Sub-Store 真实配置: 见 _fork/USER_SUB_STORE_CONFIG.md（5 变量:grouptype=0&fakeip=true&regex=true&threshold=1&ipv6=true）
 ```
 
 ## 项目状态

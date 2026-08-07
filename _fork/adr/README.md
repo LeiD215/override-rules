@@ -5,3 +5,4 @@
 | ADR-0001 | superseded | ADR-0003 | 2026-07-21 |
 | ADR-0002 | accepted | - | 2026-07-21 |
 | ADR-0003 | accepted | - | 2026-07-21 |
+| ADR-0004 | accepted | - | 2026-08-07 |

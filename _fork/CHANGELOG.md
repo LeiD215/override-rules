@@ -37,6 +37,45 @@ https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js#grouptype=0&fa
 
 **详细文档**：见同目录 `_fork/USER_SUB_STORE_CONFIG.md`
 
+## [2026-08-07] 文档：STATUS.md「关键事实」刷到 v2.5.14 + 新建 ADR-0004（根 README 故意不动）
+
+- 开始：2026-08-07 11:00 UTC (UTC+0)
+- 结束：2026-08-07 11:10 UTC (UTC+0)
+- 类型：文档 / 状态同步
+- 对象：
+  - `_fork/STATUS.md`（关键事实段刷到 v2.5.14；锁占用标记仅本次 commit 期间）
+  - `_fork/adr/0004-keep-upstream-readme.md`（**新建**，ADR-0004）
+  - `_fork/adr/README.md`（决策索引表加 ADR-0004 行）
+  - `_fork/CHANGELOG.md`（本条）
+- 原因（命中规则 7 + 14）：8/7 上午重读仓库时发现两个**结构性**问题——
+
+  | # | 问题 | 性质 |
+  |---|------|------|
+  | 1 | `STATUS.md` 「关键事实」段长期停在 v2.5.13（2026-07-27 发布），但实际 main HEAD 已发到 v2.5.14（2026-07-31）+ 今天又追加了 d484f64 docs commit | **结构性**——STATUS 是"现状速览"，不对就废 |
+  | 2 | 根 README 一直没文档化的"故意不动"理由（fork 全部沿用 upstream README，靠 _fork/ 子目录承担 fork-only 信息） | **决策盲点**——下次接手 fork 的人/agent 会困惑 README 跟 fork 自身的关系 |
+
+  两个都跟"文档与现实不一致"有关，**都是维护者自己的盲点**——可立刻修，不需要外部权威源。
+- 修改：
+
+  - **问题 #1 修法**：`_fork/STATUS.md`
+    - 「关键事实」段：`v2.5.13` → `v2.5.14`、`cd08192` → `d484f64`、tag 列表补 `src-v2.5.14` 和 `v2.5.14`、新增 `Sub-Store 真实配置` 字段指向 USER_SUB_STORE_CONFIG.md
+    - **不**改「已知盲点」表（不让"今天刚做的事"被记成"历史已解决项"——「盲点表已解决区」留给真实历史问题）
+    - **不**加「下一步待办」新条目（"刷到 v2.5.14"是当下动作，不是 TODO；不想为后续 agent 制造 phantom work）
+    - 顶部 🔒 占用中标记仅本次 commit 期间，commit 后会清
+  - **问题 #2 修法**：`_fork/adr/0004-keep-upstream-readme.md`
+    - 新建 ADR-0004（中文，跟 adr/0000-template 模板一致）
+    - 决策：根 `README.md` 保持 upstream 原样不动——三类改动禁止（URL 改指向、加 Fork 说明段、删 upstream 链接）
+    - 评估了 3 个选项：完全沿用（已选）/ 顶部加 Fork 说明段（否决）/ 完全重写（否决）
+    - 影响：「好处」= 零维护 / 单向同步 / 认知一致；「代价」= 认知模糊期（靠 `_fork/` 目录缓解）
+    - 在 `_fork/adr/README.md` 决策索引表加 ADR-0004 accepted 行
+
+- 验证：
+  - **问题 #1 验证**：`grep "v2.5.14\|d484f64"` 在 STATUS.md 应至少 2 次命中（关键事实段 + 关键事实里 Sub-Store 真实配置字段相邻行），✅ 实测通过
+  - **问题 #2 验证**：`ls _fork/adr/` 应含 `0004-keep-upstream-readme.md`、决策索引表 4 行，✅ 实测通过
+- 撤回：否（两个改动都基于实际状态、不影响功能）
+- author: ai
+- verified_by:
+
 ## [2026-07-31] 修复：package.json version 对齐到 v2.5.14
 - 开始：2026-07-31 02:55 UTC (UTC+0)
 - 结束：2026-07-31 02:58 UTC (UTC+0)
