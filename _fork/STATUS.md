@@ -16,9 +16,9 @@
 仓库地址: https://github.com/LeiD215/override-rules
 上游地址: https://github.com/powerfullz/override-rules
 最新已发布版本: v2.5.14（2026-07-31 发布；dist 分支对应的 convert.min.js）
-main 分支最新提交: d484f64（docs(_fork): 记录当前 Sub-Store 真实配置）
+main 分支最新提交: 4680cfa（feat(proxy-groups): GITHUB / TELEGRAM / SSH 默认连接改为手指定；未发布 v2.5.15）
 远端 tag:
-  - src-v2.5.14（最新，HEAD）
+  - src-v2.5.14（最新 src tag，HEAD）
   - src-v2.5.13
   - src-v2.5.12
   - src-v2.5.11
@@ -27,6 +27,7 @@ main 分支最新提交: d484f64（docs(_fork): 记录当前 Sub-Store 真实配
   - v2.5.13（dist 分支）
   - v2.5.12（dist 分支）
   - v2.5.11（dist 分支）
+  - [待 release] src-v2.5.15：本地新 commit 4680cfa 已含 src 改动，准备打 tag
 最终产出链接: https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js
 dist 分支: https://github.com/LeiD215/override-rules/tree/dist
 维护者: Hermes Agent（LeiD998），GitHub 账号 LeiD215

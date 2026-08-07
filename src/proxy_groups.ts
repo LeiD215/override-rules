@@ -185,7 +185,10 @@ export function buildProxyGroups({
             name: PROXY_GROUPS.GITHUB,
             icon: `${CDN_URL}/gh/Koolson/Qure@master/IconSet/Color/GitHub.png`,
             type: "select",
-            proxies: defaultProxies,
+            // 自定义：默认走"美国节点"国家分组（fork 自动生成，跟随订阅节点变化）。
+            // 其余 `defaultProxies` 数组元素（PROXY_GROUPS.SELECT / 国家分组 /
+            // MANUAL / DIRECT）保留，UI 下拉里仍可手动切到其他备选。
+            proxies: ["美国节点", ...defaultProxies],
         },
         {
             name: PROXY_GROUPS.BILIBILI,
@@ -235,7 +238,10 @@ export function buildProxyGroups({
             name: PROXY_GROUPS.TELEGRAM,
             icon: `${CDN_URL}/gh/powerfullz/override-rules@master/icons/Telegram.png`,
             type: "select",
-            proxies: defaultProxies,
+            // 自定义：默认走"美国节点"国家分组（fork 自动生成，跟随订阅节点变化）。
+            // 其余 `defaultProxies` 数组元素（PROXY_GROUPS.SELECT / 国家分组 /
+            // MANUAL / DIRECT）保留，UI 下拉里仍可手动切到其他备选。
+            proxies: ["美国节点", ...defaultProxies],
         },
         {
             name: PROXY_GROUPS.TWITTER,
@@ -280,7 +286,12 @@ export function buildProxyGroups({
             name: PROXY_GROUPS.SSH,
             icon: `${CDN_URL}/gh/Koolson/Qure@master/IconSet/Color/Server.png`,
             type: "select",
-            proxies: defaultProxies,
+            // 自定义：默认 DIRECT（直连）。SSH 流量大多为国内服务器（阿里云 / 腾讯云
+            // 等）或自托管 VPS，代理过去再绕回会增加延迟且耗流量；海外 SSH（GitHub /
+            // GitLab）的 SSH 协议通常也能直连访问。其余 `defaultProxies` 数组元素
+            // （PROXY_GROUPS.SELECT / 国家分组 / MANUAL / DIRECT）保留，UI 下拉里
+            // 仍可手动切到代理组。
+            proxies: ["DIRECT", ...defaultProxies],
         },
         {
             name: PROXY_GROUPS.AD_BLOCK,

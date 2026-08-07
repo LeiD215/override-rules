@@ -76,6 +76,44 @@ https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js#grouptype=0&fa
 - author: ai
 - verified_by:
 
+## [2026-08-07] 调整：GITHUB / TELEGRAM / SSH 三个服务组默认连接改为手指定
+
+- 开始：2026-08-07 12:53 UTC (UTC+0)
+- 结束：2026-08-07 12:55 UTC (UTC+0)
+- 类型：调整 / 默认策略
+- 对象：`src/proxy_groups.ts`（GITHUB / TELEGRAM / SSH 三个组的 `proxies` 字段）
+- 原因：用户希望 GITHUB / TELEGRAM / SSH 三个组的默认连接从「自动测速最快」
+ 改为手指定具体方向——
+ - GITHUB / TELEGRAM：默认走「美国节点」国家分组（fork 自动生成、跟随订阅节点变化）
+ - SSH：默认走 DIRECT（直连，省代理流量、加速国内 SSH 场景）
+ `proxies` 数组其余元素（国家分组、PROXY_GROUPS.SELECT、PROXY_GROUPS.MANUAL、
+ DIRECT 等）保留，UI 下拉里仍可手动切换其他备选。
+- 修改：
+  - GITHUB 组：`proxies: defaultProxies` → `proxies: ["美国节点", ...defaultProxies]`
+  - TELEGRAM 组：同上
+  - SSH 组：`proxies: defaultProxies` → `proxies: ["DIRECT", ...defaultProxies]`
+  - 三个组各加 1 段中文注释说明改动理由（参照 AI_SERVICE / AI_FALLBACK 那段注释风格）
+- 验证：
+  - `npx tsc --noEmit` exit 0
+  - `npm run artifacts` exit 0，生成 192 个 YAML
+  - `convert.min.js` 字节数 21202 → 21256（+54，三处字符串加进去的体积差，符合预期）
+  - 抽样 `yamls/config_gt-1_ipv6-1_full-0_keepalive-0_fakeip-1_quic-1_tun-1.yaml`：
+    - `Github` 组第 1 个 = 「美国节点」 ✓
+    - `Telegram` 组第 1 个 = 「美国节点」 ✓
+    - `SSH` 组第 1 个 = 「DIRECT」 ✓
+  - 数组里有重复「美国节点」（前面加的 + `defaultProxies` 数组中含有的），
+    属 fork 现有行为，select 组数组允许重复，UI 下拉会显示 2 个同名项（同一引用），
+    不影响功能
+- 影响：客户端拉新 `convert.min.js` 后，GITHUB / TELEGRAM 默认出口是「美国节点」
+ 国家分组里的某个节点（fork 自动按测速/优先级选），SSH 默认直连；用户
+ 仍可在 UI 下拉里切换到 PROXY_GROUPS.SELECT / 其他国家分组 / MANUAL 等备选。
+ 不影响其他 13 个 AUTO 组（APPLE / CRYPTO / EHENTAI / MICROSOFT / NETFLIX / PIKPAK /
+ SPOTIFY / TIKTOK / TWITCH / TWITTER / XBOX / YOUTUBE）以及 AI_SERVICE / AI_FALLBACK
+ （用户本次明确未改）。
+- 撤回：否
+- author: ai
+- verified_by:
+
 ## [2026-07-31] 修复：package.json version 对齐到 v2.5.14
 - 开始：2026-07-31 02:55 UTC (UTC+0)
 - 结束：2026-07-31 02:58 UTC (UTC+0)
