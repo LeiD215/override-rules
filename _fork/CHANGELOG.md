@@ -6,6 +6,37 @@
 
 ## [Unreleased]
 
+### 用户 Sub-Store 当前真实配置（2026-08-07 确认）
+
+**脚本 URL**：
+
+```text
+https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js#grouptype=0&fakeip=true&regex=true&threshold=1&ipv6=true
+```
+
+**5 个 URL 参数**（按字母升序）：
+
+| 参数 | 值 | 含义 |
+|------|-----|------|
+| `fakeip` | `true` | 启用 FakeIP（防 DNS 污染） |
+| `grouptype` | `0` | 全量代理组（所有可能的国家分组都生成） |
+| `ipv6` | `true` | 启用 IPv6 解析 |
+| `regex` | `true` | 启用正则规则集 |
+| `threshold` | `1` | IP 归属检测阈值降到 1 |
+
+**演变历史**：
+
+- 2026-07-20（`20260720_055406_898085` session，首次配置）：
+  - 4 个变量：`grouptype=2&fakeip=true&regex=true&threshold=1`
+  - 来源：`skills/productivity/proxy-subscription-management/references/multi-platform-caveats.md` L3260
+- 2026-08-07（本 session 二次确认）：
+  - 5 个变量：`grouptype=0&fakeip=true&regex=true&threshold=1&ipv6=true`
+  - 变更：`grouptype` 从 `2` → `0`；新增 `ipv6=true`
+- ⚠️ **数据来源说明**：2026-08-07 的 5 个变量是用户本人在本 session 中口头确认的，**未与 Sub-Store backend storage 二次比对**。如果用户实际配置不同，以 Sub-Store UI 显示为准。
+- 下次询问"我之前加的 4 个变量是啥"时，**主要参考这份记录**，但也建议和 `multi-platform-caveats.md` L3260 对比。
+
+**详细文档**：见同目录 `_fork/USER_SUB_STORE_CONFIG.md`
+
 ## [2026-07-31] 修复：package.json version 对齐到 v2.5.14
 - 开始：2026-07-31 02:55 UTC (UTC+0)
 - 结束：2026-07-31 02:58 UTC (UTC+0)
