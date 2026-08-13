@@ -1,5 +1,6 @@
 <!--
-🔒 占用中 | 谁: ai | 从: 2026-08-13 08:30 UTC (UTC+0) | 打算做: 修复 AI服务/AI故障转移 跨 fork 用户通用化 + release v2.5.15.1 | 预计时长(TTL): 60 分钟
+🔒 占用中标记放在这里（写之前加、写完删）：
+🔒 占用中 | 谁: xxx | 从: YYYY-MM-DD HH:MM 时区缩写 (UTC±N) | 打算做: 一句话 | 预计时长(TTL): 30分钟
 
 超时（预计时长到了还没清除）视为失效，下一个人可以强制接管，
 但要在 CHANGELOG 留一笔"接管了过期的锁"。
@@ -14,23 +15,25 @@
 ```yaml
 仓库地址: https://github.com/LeiD215/override-rules
 上游地址: https://github.com/powerfullz/override-rules
-最新已发布版本: v2.5.15（2026-08-07 发布；dist 分支对应的 convert.min.js）
-main 分支最新提交: 930ee7b（dist HEAD = v2.5.15 tag；src HEAD = caa007b「feat(proxy-groups): GITHUB / TELEGRAM / SSH 默认连接改为手指定」）
+最新已发布版本: v2.5.16（2026-08-13 发布；dist 分支对应的 convert.min.js）
+main 分支最新提交: 18848ec（dist HEAD = v2.5.16 tag，src HEAD = 4faa790「fix(proxy-groups): AI服务 / AI故障转移 跨 fork 用户通用化」+ 18848ec「docs(_fork): CHANGELOG 补 wd(wdr) 验证记录 + release 后续验证状态」）
 远端 tag:
-  - src-v2.5.15（最新 src tag，指向 caa007b）
+  - src-v2.5.16（最新 src tag，指向 4faa790）
+  - src-v2.5.15
   - src-v2.5.14
   - src-v2.5.13
   - src-v2.5.12
   - src-v2.5.11
   - src-v2.5.10 及更早
-  - v2.5.15（dist 分支，最新发布；指向 930ee7b）
+  - v2.5.16（dist 分支，最新发布；指向 4042fbc）
+  - v2.5.15（dist 分支）
   - v2.5.14（dist 分支）
   - v2.5.13（dist 分支）
   - v2.5.12（dist 分支）
   - v2.5.11（dist 分支）
 最终产出链接: https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js
 dist 分支: https://github.com/LeiD215/override-rules/tree/dist
-GitHub Release: https://github.com/LeiD215/override-rules/releases/tag/v2.5.15
+GitHub Release: https://github.com/LeiD215/override-rules/releases/tag/v2.5.16
 维护者: Hermes Agent（LeiD998），GitHub 账号 LeiD215
 接手日期: 2026-07-21
 记录体系: blackbox（2026-07-24 从 logbook 迁移）
@@ -76,7 +79,19 @@ bug 修复（低倍率节点残留引用 + Adobe/Autodesk 图标 404）、文档
 - 12:45–12:55 UTC：发布 v2.5.13 — 修复 issue 3（Adobe/Autodesk 服务图标 404：fork 自身 icons/ 目录新增两个 PNG，icon URL 改为 fork 自身引用），commit cd08192 + 2 个 binary，release run 30267173175 ~20 秒 success
 - 12:55 UTC：用户追问记录脱节，一次性把今天所有未落盘的 blackbox 记录补齐（含本条 STATUS.md 自身刷新）
 
-详见 _fork/CHANGELOG.md（最后 9 条记录按时间正序）。
+（2026-08-13）AI 服务组跨 fork 用户通用化修复 + v2.5.16 release：
+
+- 08:25–08:30 UTC：诊断 wmr / wd 订阅生成的 yaml 解析失败原因 — `AI_PREFERRED_NODES` 硬编码 5 个 dllxr1r 专属节点名（`US-LAX-Bwh1-VLRV-dllxr1` 等），wmr/wd 订阅里这 5 个节点名都不存在 → mihomo 报 `proxy group[5]: AI故障转移: use or proxies missing`
+- 08:30–08:50 UTC：用户决定修复方案 — AI_SERVICE / AI_FALLBACK 改成引用 fork 自动生成的国家分组（"美国节点" / "日本节点" / "香港节点"），不再硬编码具体节点名。香港节点保留在 AI_SERVICE 列表底部兜底（不进 AI_FALLBACK）
+- 08:50–08:53 UTC：3 处 src 改动（删 `AI_PREFERRED_NODES` / `AI_HK_FALLBACK_NODES` 常量 + 改 AI_SERVICE.proxies + 改 AI_FALLBACK.proxies）
+- 08:53 UTC：本地 build 成功（typecheck + esbuild，convert.min.js 21220 → 21129 字节，−91 字节因删常量数组）
+- 08:53–08:55 UTC：用 dllxr1r（14 节点）+ wmr（12 节点）双订阅实际跑 convert.min.js 验证 — AI_SERVICE/AI_FALLBACK 都正确引用国家分组，"美国节点"/"日本节点"/"香港节点" 组都正确生成（dllxr1r 各 4/6/4，wmr 各 4/4/4）
+- 08:55 UTC：commit 4faa790（src 改动）+ push origin main
+- 08:55–08:56 UTC：打 tag `src-v2.5.16` + push，CI release workflow 跑完 success（run 31684254317，32s），dist 分支 HEAD = `4042fbc`，GitHub Release v2.5.16 创建（3 个 asset）
+- 08:56–08:58 UTC：用户提供 wd 订阅 URL（share/file/wdr，3A3tpYM2h0WhfrMtVemSc），实际跑验证 — 12 节点命名格式与 wmr 完全一致（`XX-XXX-wd-*`），AI_SERVICE/AI_FALLBACK proxies 与 dllxr1r/wmr 相同
+- 08:58 UTC：commit 18848ec（CHANGELOG 补 wd 验证记录）+ push origin main
+
+详见 _fork/CHANGELOG.md（最后 10 条记录按时间正序）。
 
 ## 下一步待办
 
@@ -93,6 +108,7 @@ bug 修复（低倍率节点残留引用 + Adobe/Autodesk 图标 404）、文档
 - [x] 修复 release notes 显示 fork commits + CHANGELOG 段遗留问题（issue 1+2，发布 v2.5.12）
 - [x] 修复 Adobe/Autodesk 服务图标 404（issue 3，发布 v2.5.13）
 - [x] 补齐今天所有未落盘的 blackbox 记录（2026-07-27 12:55 UTC，用户追问触发）
+- [x] 修复 AI服务 / AI故障转移 跨 fork 用户通用化（fork 服务 3 个独立 Sub-Store 用户 dllxr1r/wmr/wd，wmr/wd 之前因 dllxr1r 专属节点硬编码导致 yaml 解析失败），发布 v2.5.16（2026-08-13）
 - [ ] 同步上游更新（当前落后于 upstream，Fork 时基于 v2.5.5）
 - [ ] 后续按需继续往 MustDirect/MustProxy 补充域名/IP
 - [ ] （可选）scripts/build.mjs prettier 报警 — 已接受为技术债，不主动修复
