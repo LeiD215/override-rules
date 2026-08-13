@@ -72,7 +72,24 @@ https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js#grouptype=0&fa
       - `美国节点` 含 4 个（US-LAX-wm-*）✓
       - `日本节点` 含 4 个（缺 Alice1，符合预期）✓
       - `香港节点` 含 4 个（HK-HKG-wm-*）✓
-  - 关键差异：wmr 比 dllxr1r 少 2 个节点（`JP-NRT-Alice1-VLRV/VEXT`），符合机场对 wmr 的实际配额
+    - wd/wdr（12 节点，新命名，URL `share/file/wdr`，3A3tpYM2h0WhfrMtVemSc）：
+      - `AI服务` proxies 同上 ✓
+      - `AI故障转移` proxies 同上 ✓
+      - `美国节点` 含 4 个（US-LAX-wd-*）✓
+      - `日本节点` 含 4 个（缺 Alice1，符合预期）✓
+      - `香港节点` 含 4 个（HK-HKG-wd-*）✓
+    - **3 个用户对比**：dllxr1r 14 节点（含 Alice1），wmr/wd 各 12 节点（缺 Alice1）。3 份
+      yaml 都能正常解析，AI_SERVICE / AI_FALLBACK 在 3 个订阅里都指向相同的国家分组引用
+      列表，跨 fork 用户兼容目标达成
+  - 关键差异：wmr / wd 比 dllxr1r 各少 2 个节点（`JP-NRT-Alice1-VLRV/VEXT`），符合机场对
+    wmr / wd 的实际配额
+- 后续验证（2026-08-13 08:58 UTC，src tag 推送后）：
+  - `npm run build` exit 0
+  - `git tag src-v2.5.16` + `git push origin src-v2.5.16` 成功
+  - CI release workflow 跑完 success（run 31684254317，32s）
+  - GitHub Release v2.5.16 创建（2026-08-13T08:56:11Z，3 个 asset：convert.js + convert.min.js + yamls.tar.gz）
+  - dist 分支 HEAD = `4042fbc41f91d16b85ae3286144b8935426bf37c`，convert.min.js 21130 字节（本地 21129，1 字节差异为 release 注释 timestamp）
+  - `gh release view v2.5.16` 显示 git-cliff 自动生成 release notes，1 Bug Fix (4faa790)
 - 影响：
   - 客户端拉新 `convert.min.js` 后，3 个 Sub-Store 用户（dllxr1r / wmr / wd）的 yaml 都能正常解析，AI_SERVICE / AI_FALLBACK 不再因节点名不匹配报错
   - 失去 fork 之前的"AI 偏好 VLRV 节点"硬编码设计（dllxr1r 自定义优先级）：现在改由 mihomo 自动按 fallback 顺序试 "美国节点" 组里的节点（fork 自动按订阅里的实际节点列表展开）
