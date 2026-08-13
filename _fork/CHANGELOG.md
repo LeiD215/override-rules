@@ -37,6 +37,51 @@ https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js#grouptype=0&fa
 
 **详细文档**：见同目录 `_fork/USER_SUB_STORE_CONFIG.md`
 
+## [2026-08-13] 修复：AI服务 / AI故障转移 跨 fork 用户通用化（去 dllxr1r 专属硬编码）
+
+- 开始：2026-08-13 08:30 UTC (UTC+0)
+- 结束：2026-08-13 08:53 UTC (UTC+0)
+- 类型：修复 / 跨用户兼容
+- 对象：`src/proxy_groups.ts`（AI_SERVICE / AI_FALLBACK 两个组的 `proxies` 字段；删除 `AI_PREFERRED_NODES` / `AI_HK_FALLBACK_NODES` 两个常量）
+- 原因：
+  - 用户 fork **实际服务 3 个独立 Sub-Store 共享用户**（dllxr1r / wmr / wd），不是单人订阅
+  - `AI_PREFERRED_NODES` 原硬编码 5 个 dllxr1r 专属节点名（`US-LAX-Bwh1-VLRV-dllxr1` 等），导致 wmr/wd 订阅生成的 yaml 里这 5 个节点名**全部不存在** → mihomo 报 `proxy group[5]: AI故障转移: use or proxies missing`，wmr/wd 客户端整个 yaml 解析失败
+  - 解决方法：**AI_SERVICE / AI_FALLBACK 改成引用 fork 自动生成的国家分组**（"美国节点" / "日本节点" / "香港节点"），不再硬编码具体节点名
+  - 前提：wmr / wd 用户的机场订阅节点名必须改成 `<COUNTRY>-<CITY>-<USER>-<NODE>-<PROTO>` 统一格式（含国家码 + 城市码前缀），让 `countriesMeta[country].pattern` 能匹配到
+  - dllxr1r 节点命名格式是 `<COUNTRY>-<CITY>-<NODE>-<PROTO>-<USER>`（USER 在最后），也满足 pattern 匹配（pattern 是匹配关键字，不要求位置），不强制改
+- 修改：
+  - 删除 `AI_PREFERRED_NODES` 常量（5 个 dllxr1r 节点名）
+  - 删除 `AI_HK_FALLBACK_NODES` 常量（2 个 dllxr1r 香港节点名）
+  - 顶部 L12-L26 长注释（关于"手动维护 AI_PREFERRED_NODES"）→ 重写为说明"AI_SERVICE / AI_FALLBACK 引用国家分组、跨 fork 用户通用"的注释
+  - `AI_SERVICE.proxies`：从 `[...AI_PREFERRED_NODES, AI_FALLBACK, MANUAL, ...AI_HK_FALLBACK_NODES]` → `["美国节点", "日本节点", AI_FALLBACK, MANUAL, "香港节点"]`
+  - `AI_FALLBACK.proxies`：从 `AI_PREFERRED_NODES` → `["美国节点", "日本节点", MANUAL]`
+  - `AI_FALLBACK` 的 `type: fallback` + `url: "https://chatgpt.com"` + `interval: 300` + `tolerance: 20` **保留**（自动测速 + 自动切换语义不变）
+- 验证：
+  - `npm run build` exit 0（typecheck + build 都通过）
+  - `convert.min.js` 字节数 21220 → 21129（−91 字节，因为删了 2 个常量数组 + 改了 proxies 字符串）
+  - **跨用户验证**（在 Node 里手动调用 `globalThis.main({proxies, subscriptionInfo, userAgent}, ...)` 模拟 Sub-Store）：
+    - dllxr1r（14 节点，新命名）：
+      - `AI服务` type=select, proxies=`['美国节点', '日本节点', 'AI故障转移', '手动选择', '香港节点']` ✓
+      - `AI故障转移` type=fallback, proxies=`['美国节点', '日本节点', '手动选择']` ✓
+      - `美国节点` 含 4 个（US-LAX-dllxr1-Bwh1-VLRV/VEXT + US-LAX-dllxr1-Dmit1-VLRV/VEXT）✓
+      - `日本节点` 含 6 个（含 Alice1 VLRV+VEXT）✓
+      - `香港节点` 含 4 个（HK-HKG-dllxr1-Dmit1-VLRV/VEXT + HK-HKG-dllxr1-HH1-VLRV/VEXT）✓
+    - wmr（12 节点，新命名）：
+      - `AI服务` proxies 同上 ✓
+      - `AI故障转移` proxies 同上 ✓
+      - `美国节点` 含 4 个（US-LAX-wm-*）✓
+      - `日本节点` 含 4 个（缺 Alice1，符合预期）✓
+      - `香港节点` 含 4 个（HK-HKG-wm-*）✓
+  - 关键差异：wmr 比 dllxr1r 少 2 个节点（`JP-NRT-Alice1-VLRV/VEXT`），符合机场对 wmr 的实际配额
+- 影响：
+  - 客户端拉新 `convert.min.js` 后，3 个 Sub-Store 用户（dllxr1r / wmr / wd）的 yaml 都能正常解析，AI_SERVICE / AI_FALLBACK 不再因节点名不匹配报错
+  - 失去 fork 之前的"AI 偏好 VLRV 节点"硬编码设计（dllxr1r 自定义优先级）：现在改由 mihomo 自动按 fallback 顺序试 "美国节点" 组里的节点（fork 自动按订阅里的实际节点列表展开）
+  - 香港节点不再出现在 AI_FALLBACK（只出现在 AI_SERVICE 列表底部兜底），符合 fork 之前"多数 AI 服务封香港 IP"的设计意图
+  - wmr / wd 用户需要在机场侧把节点名改成统一格式（含 US/JP/HK 国家码前缀），否则对应国家分组不会生成
+- 撤回：否
+- author: ai
+- verified_by:
+
 ## [2026-08-07] 文档：STATUS.md「关键事实」刷到 v2.5.14 + 新建 ADR-0004（根 README 故意不动）
 
 - 开始：2026-08-07 11:00 UTC (UTC+0)

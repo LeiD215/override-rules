@@ -10,20 +10,12 @@ interface BuildGroupByTypeInput {
 }
 
 /**
- * 自定义：AI 服务偏好节点（Reality/VLRV 协议变体）。手动维护，不随节点列表
- * 自动变化——物理节点改名/增删时记得同步这里。US-LAX-Bwh1 是当前日常手动
- * 固定使用的节点，排最前面。多数主流 AI 服务会封禁香港 IP，所以香港节点单独
- * 放进 AI_HK_FALLBACK_NODES，垫底保留，不放进主优先级列表。
+ * 自定义：AI_SERVICE / AI_FALLBACK 直接引用国家分组（"美国节点" / "日本节点" /
+ * "香港节点"），由 mihomo 按 nodesMeta 正则自动收集订阅里匹配国家码的节点。
+ * 不再硬编码具体节点名——跨 fork 用户通用。香港节点在 AI_SERVICE 列表底部兜底，
+ * 不放进 AI_FALLBACK（多数主流 AI 服务封禁香港 IP）。
  * 见 _fork/adr/（AI 服务策略组相关记录）。
  */
-const AI_PREFERRED_NODES = [
-    "US-LAX-Bwh1-VLRV-dllxr1",
-    "US-LAX-Dmit1-VLRV-dllxr1",
-    "JP-OSA-Bwh2-VLRV-dllxr1",
-    "JP-NRT-HH1-VLRV-dllxr1",
-    "JP-NRT-Alice1-VLRV-dllxr1",
-];
-const AI_HK_FALLBACK_NODES = ["HK-HKG-Dmit1-VLRV-dllxr1", "HK-HKG-HH1-VLRV-dllxr1"];
 
 /**
  * 根据代理组类型生成对应的代理组配置。
@@ -118,13 +110,14 @@ export function buildProxyGroups({
             icon: `${CDN_URL}/gh/Koolson/Qure@master/IconSet/Color/ChatGPT.png`,
             type: "select",
             // 自定义：手动选择为主，不用自动测速——AI 服务对 IP 跳变敏感，频繁
-            // 换节点容易触发登录风控。US-LAX-Bwh1（当前常用节点）排最前，美/日
-            // 节点在前、香港节点垫底保留。
+            // 换节点容易触发登录风控。美/日节点在前、AI故障转移次之、香港节点
+            // 兜底。
             proxies: [
-                ...AI_PREFERRED_NODES,
+                "美国节点",
+                "日本节点",
                 PROXY_GROUPS.AI_FALLBACK,
                 PROXY_GROUPS.MANUAL,
-                ...AI_HK_FALLBACK_NODES,
+                "香港节点",
             ],
         },
         {
@@ -137,7 +130,7 @@ export function buildProxyGroups({
             url: "https://chatgpt.com",
             interval: 300,
             tolerance: 20,
-            proxies: AI_PREFERRED_NODES,
+            proxies: ["美国节点", "日本节点", PROXY_GROUPS.MANUAL],
         },
         {
             name: PROXY_GROUPS.CRYPTO,
