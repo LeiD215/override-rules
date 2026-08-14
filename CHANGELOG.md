@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.5.6](https://github.com/powerfullz/override-rules/compare/src-v2.5.5...src-v2.5.6) (2026-08-14)
+
+
+### Features
+
+- 为手动选择代理组完整书写节点名称 ([de96f23](https://github.com/powerfullz/override-rules/commit/de96f230d688fdaa5106e9a7ac5372e061de57c8))
 ## [2.5.5](https://github.com/powerfullz/override-rules/compare/src-v2.5.4...src-v2.5.5) (2026-06-30)
 
 
