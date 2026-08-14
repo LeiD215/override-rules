@@ -60,6 +60,7 @@ function buildGroupByType({
  * @returns 代理组配置数组
  */
 export function buildProxyGroups({
+    allNodes,
     regexFilter,
     groupType,
     countryNames,
@@ -86,8 +87,8 @@ export function buildProxyGroups({
         {
             name: PROXY_GROUPS.MANUAL,
             icon: `${CDN_URL}/gh/shindgewongxj/WHATSINStash@master/icon/select.png`,
-            "include-all": true,
             type: "select",
+            proxies: allNodes,
         },
         landing
             ? {
