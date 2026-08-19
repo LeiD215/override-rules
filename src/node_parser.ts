@@ -14,6 +14,16 @@ const COUNTRY_EXCLUDE_MAP = Object.fromEntries(
 ) as Record<string, RegExp>;
 
 /**
+ * 从 Clash 配置中筛选出所有 Tailscale 节点。
+ * @param config - 当前的 Clash 配置对象，需包含 `proxies` 字段
+ * @returns Tailscale 节点数组
+ */
+// WIP
+export function parseTailscale(nodes: ProxyNode[]): ProxyNode[] {
+    return (nodes || []).filter((proxy) => proxy.type === "tailscale" || false);
+}
+
+/**
  * 从 Clash 配置中筛选出所有低价节点的名称。
  * @param config - 当前的 Clash 配置对象，需包含 `proxies` 字段
  * @returns 匹配低价节点正则的节点数组
