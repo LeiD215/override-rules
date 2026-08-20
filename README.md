@@ -111,6 +111,20 @@ https://raw.githubusercontent.com/powerfullz/override-rules/refs/heads/preview/c
 
 ![新增的代理组](img/dialer-group.png) ![如何配置自建节点](img/dialer-example.png)
 
+### 关于 Tailscale 的说明
+
+Mihomo 内核在近期的更新中支持了 Tailscale 出站，这覆写规则也做出了更新，当检测到订阅中存在`tailscale`类型的节点时，会自动配置相关的代理组、Tun 配置和分流规则，开箱即用，支持 Magic DNS，以下是 Tailscale 节点配置的示例：
+
+```yaml
+proxies:
+  - name: "Tailscale出口"   # 注意节点名称不能为 Tailscale，否则会和代理组重名造成启动出错
+    type: tailscale
+    auth-key: tskey-auth-xxxxxxxx
+    control-url: https://controlplane.tailscale.com
+    ephemeral: true
+    udp: true
+```
+
 ### 关于自动生成的 YAML 格式覆写
 
 除了直接引用动态构建的 JS 覆写脚本外，你也可以使用预先生成好的静态 YAML 覆写文件。这适用于某些不支持执行 JS 的客户端（例如旧版的 Clash Verge）。
