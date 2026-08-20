@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.7.0](https://github.com/powerfullz/override-rules/compare/src-v2.6.0...src-v2.7.0) (2026-08-20)
+
+
+### Bug Fixes
+
+- Remove redundant `default-nameserver` ([7868631](https://github.com/powerfullz/override-rules/commit/786863149092cfe040a279c1bbf201a2ceb59dfd))
+- 修正`fake-ip-filter`内容 ([0f806c8](https://github.com/powerfullz/override-rules/commit/0f806c884a1b720de648baa3f4e12bb2690e4dcf))
+
+
+### Features
+
+- Remove SSH proxy group ([582f322](https://github.com/powerfullz/override-rules/commit/582f3229ad32a0b0016a98435a344642b2753f10))
 ## [2.6.0](https://github.com/powerfullz/override-rules/compare/src-v2.5.6...src-v2.6.0) (2026-08-20)
 
 
