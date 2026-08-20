@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.6.0](https://github.com/powerfullz/override-rules/compare/src-v2.5.6...src-v2.6.0) (2026-08-20)
+
+
+### Documentation
+
+- 新增关于 Tailscale 的说明 ([ce94656](https://github.com/powerfullz/override-rules/commit/ce94656631a8a322c032c6e333949829f3682f06))
+
+
+### Features
+
+- 完善 Tailscale 功能 ([7971888](https://github.com/powerfullz/override-rules/commit/797188846865de703d5f9b2990a55afa92a08389))
+- 增加 tailscale 分流雏形 ([a77954b](https://github.com/powerfullz/override-rules/commit/a77954b54d505ebafbeb4291134aa2fea9822cbb))
+
+
+### Other
+
+- 优化 tailscale 分组显示 ([a9b65f3](https://github.com/powerfullz/override-rules/commit/a9b65f37146d92dd8a8612378ee991c7e96b96dd))
 ## [2.5.6](https://github.com/powerfullz/override-rules/compare/src-v2.5.5...src-v2.5.6) (2026-08-14)
 
 
