@@ -26,6 +26,7 @@ import {
     parseCountries,
     parseLowCost,
     parseNodesByLanding,
+    parseTailscale,
 } from "./node_parser";
 import { buildRules } from "./rules";
 import { ruleProviders } from "./rule_providers";
@@ -75,6 +76,8 @@ function main(config: ClashConfig): ClashConfig {
     const lowCostNodes = parseLowCost(landing ? nonLandingNodes : config.proxies);
     const countryNames = getActiveCountryNames(countryNodes, countryThreshold);
     const allNodes = config.proxies.map((node) => node.name);
+    const tailscaleNodes = parseTailscale(config.proxies);
+    const hasTailscale = tailscaleNodes.length > 0;
 
     const {
         defaultProxies,
@@ -97,6 +100,7 @@ function main(config: ClashConfig): ClashConfig {
         countryNames,
         countryNodes,
         lowCostNodes,
+        tailscaleNodes,
         landing,
         landingNodes,
         defaultProxies,
@@ -115,7 +119,7 @@ function main(config: ClashConfig): ClashConfig {
         proxies: globalProxies,
     });
 
-    const finalRules = buildRules({ quicEnabled });
+    const finalRules = buildRules({ quicEnabled }, hasTailscale);
 
     return {
         proxies: config.proxies,
@@ -142,7 +146,7 @@ function main(config: ClashConfig): ClashConfig {
         rules: finalRules,
         sniffer: snifferConfig,
         dns: buildDns({ fakeIPEnabled, ipv6Enabled }),
-        tun: buildTunConfig(tunEnabled),
+        tun: buildTunConfig(tunEnabled, hasTailscale),
         "geodata-mode": true,
         "geox-url": geoxURL,
     };

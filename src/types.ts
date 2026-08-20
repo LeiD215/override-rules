@@ -206,6 +206,7 @@ export interface BuildProxyGroupsInput {
     lowCostNodes: ProxyNode[];
     landing: boolean;
     landingNodes: ProxyNode[];
+    tailscaleNodes: ProxyNode[];
     defaultProxies: string[];
     defaultProxiesDirect: string[];
     defaultSelector: string[];

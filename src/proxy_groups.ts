@@ -66,6 +66,7 @@ export function buildProxyGroups({
     countryNames,
     countryNodes,
     lowCostNodes,
+    tailscaleNodes,
     landing,
     landingNodes,
     defaultProxies,
@@ -77,6 +78,7 @@ export function buildProxyGroups({
     const hasTW = countryNames.includes("台湾");
     const hasHK = countryNames.includes("香港");
     const hasUS = countryNames.includes("美国");
+    const hasTailscale = tailscaleNodes.length > 0;
     const groups: Array<ProxyGroup | null> = [
         {
             name: PROXY_GROUPS.SELECT,
@@ -279,6 +281,14 @@ export function buildProxyGroups({
             interval: 60,
             tolerance: 20,
         },
+        hasTailscale
+            ? {
+                  name: PROXY_GROUPS.TAILSCALE,
+                  icon: `${CDN_URL}/gh/powerfullz/override-rules@master/icons/Tailscale.png`,
+                  type: "select",
+                  proxies: tailscaleNodes.map((node) => node.name).filter(isNotNull),
+              }
+            : null,
         lowCostNodes.length > 0 || regexFilter
             ? buildGroupByType({
                   name: PROXY_GROUPS.LOW_COST,
