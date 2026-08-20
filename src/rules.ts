@@ -18,7 +18,6 @@ export function buildRules(
         tailscale ? `IP-CIDR,100.64.0.0/10,${PROXY_GROUPS.TAILSCALE},no-resolve` : null,
         tailscale ? `IP-CIDR,fd7a:115c:a1e0::/48,${PROXY_GROUPS.TAILSCALE},no-resolve` : null,
         tailscale ? `DOMAIN-SUFFIX,ts.net,${PROXY_GROUPS.TAILSCALE}` : null,
-        `DST-PORT,22,${PROXY_GROUPS.SSH}`,
         `GEOIP,private,DIRECT,no-resolve`,
         `RULE-SET,ADBlock,${PROXY_GROUPS.AD_BLOCK}`,
         `RULE-SET,AdditionalFilter,${PROXY_GROUPS.AD_BLOCK}`,

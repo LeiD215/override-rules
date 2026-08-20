@@ -245,12 +245,14 @@ export function buildProxyGroups({
             type: "select",
             proxies: ["DIRECT", "REJECT"],
         },
-        {
-            name: PROXY_GROUPS.SSH,
-            icon: `${CDN_URL}/gh/Koolson/Qure@master/IconSet/Color/Server.png`,
-            type: "select",
-            proxies: defaultProxies,
-        },
+        hasTailscale
+            ? {
+                  name: PROXY_GROUPS.TAILSCALE,
+                  icon: `${CDN_URL}/gh/powerfullz/override-rules@master/icons/Tailscale.png`,
+                  type: "select",
+                  proxies: tailscaleNodes.map((node) => node.name).filter(isNotNull),
+              }
+            : null,
         {
             name: PROXY_GROUPS.AD_BLOCK,
             icon: `${CDN_URL}/gh/Koolson/Qure@master/IconSet/Color/AdBlack.png`,
@@ -290,14 +292,6 @@ export function buildProxyGroups({
                       ? { proxies: lowCostNodes.map((node) => node.name).filter(isNotNull) }
                       : { "include-all": true as const, filter: LOW_COST_NODE_MATCHER.pattern },
               })
-            : null,
-        hasTailscale
-            ? {
-                  name: PROXY_GROUPS.TAILSCALE,
-                  icon: `${CDN_URL}/gh/powerfullz/override-rules@master/icons/Tailscale.png`,
-                  type: "select",
-                  proxies: tailscaleNodes.map((node) => node.name).filter(isNotNull),
-              }
             : null,
         ...countryNames.map((country) => {
             const meta = countriesMeta[country];
