@@ -1,0 +1,156 @@
+# 给 hermes 的操作规范（`_fork/` 记录区专用）
+
+这是一个 Fork 项目（`powerfullz/override-rules` 的个人定制版），不是从零建的
+空仓库。以下规则专门针对"Fork 场景"，配合 blackbox 通用记录规则使用。
+
+## 🚫 红线：这几个文件/操作绝对不能碰
+
+1. **不要修改仓库根目录的 `README.md` / `CHANGELOG.md`**——那是上游项目自己在
+   维护的文件，`CHANGELOG.md` 还是自动生成的（`cliff.toml` + 发布流程）。我们
+   自己的记录一律写在 `_fork/` 目录下面
+2. **不要直接编辑 `convert.js` / `convert.min.js` / `yamls/` 目录**——这些是
+   构建产物，主分支已经取消 Git 跟踪，编辑了也没用，下次构建会被覆盖。一切
+   修改必须在 `src/*.ts` 源码里做
+3. **绝对不能在上游原仓库（`powerfullz/override-rules`）执行发布流程**（`npm
+   version patch/minor/major`）——这是 `AGENTS.md` 里项目作者写的安全声明，
+   只有代表作者 `powerfullz` 本人的 Agent 才能碰。**在自己 Fork 出来的仓库里
+   执行是完全没问题的**，两者不要搞混——判断依据很简单：检查当前仓库的
+   `origin` remote 指向的是不是自己的 Fork，不是 upstream 原仓库
+
+## 执行纪律与安全红线
+
+1. 接到多步骤的仓库或运维任务时，必须严格按照用户给定的顺序执行；每完成一步
+   就报告该步结果，不得连续完成多步后再一次性汇报。
+2. 任何代码或文档改动都必须先提交到本地分支；只有经过用户验收并明确确认后，
+   才能 push 到远端。
+3. 凭据（token、密码等）绝不在对话中复述，也不直接通过对话接收；一律使用
+   `<token>` 这类占位符表示，真实值不得出现在对话内容中。
+4. GitHub 授权优先使用限定到目标仓库的 Fine-grained Personal Access Token，
+   遵守最小权限原则；凭据必须在本地 Docker 容器终端中输入，不得让输入内容
+   暴露在对话记录中。
+5. 每次 push 后必须实际验证：远端分支状态、对应 tag、GitHub Actions 是否正常
+   触发并完成、构建产物是否成功生成，以及最终规则内容是否符合预期。不能仅凭
+   "push 成功"就认定任务完成。
+
+## 日常执行规则（基于 blackbox 通用规则，针对 Fork 场景调整）
+
+### 开工时（blackbox 触发规则 1）
+1. 读 `_fork/STATUS.md`，了解当前进度；发现内容和实际不符就顺手核正
+2. 读 `_fork/CHANGELOG.md` 最近几条，了解最近改了什么
+3. 在 `_fork/CHANGELOG.md` 的 `[Unreleased]` 下新建条目，记开始时间戳
+
+### 执行中（blackbox 触发规则 2-16）
+- 改 `src/*.ts` 源码，不改产物文件
+- 日常小改（加一条规则/调一个策略组）：直接改，CHANGELOG 自动写，事后一句话
+  告诉用户改了什么
+- 涉及架构级选择（比如要不要换一种同步上游的方式）：先停下来问用户"这个要不要
+  写成 ADR"，得到确认后才写，且必须在决定成立的当下写，不能事后补
+- 任何"为什么"类问题：先查 STATUS.md → CHANGELOG.md → adr/ → 故障案例库.md
+- 任何"改了什么"类问题：查 CHANGELOG.md
+- 任何"为什么这么决定"类问题：查 adr/
+- 任何"踩过什么坑"类问题：查 故障案例库.md
+
+### 改完必须验证（不能跳过）
+```bash
+npx tsc --noEmit          # 类型检查
+npm run build              # 实际构建，确认没有编译错误
+```
+建议再跑一次功能验证（用真实或模拟的节点数据调用产物，检查关键分组/规则是否
+符合预期）——具体做法参考 `_fork/CHANGELOG.md` 里 2026-07-21 那条"验证"部分
+记录的方法。
+
+### 收工时（blackbox 触发规则 14）
+1. 补上 CHANGELOG 条目的结束时间戳和内容
+2. 更新 `_fork/STATUS.md`
+3. 一句话告诉用户改了哪些文件
+
+## 硬约束：blackbox 强制记录（git hook 层）
+
+这一节是**强制机制**（不是建议）。配合上一节"日常执行规则"使用，覆盖第 2 层
+软约束的失效模式：agent 不会自觉遵守"必须写记录"的文字规则，但 git hook 是
+物理约束——commit 直接被拒。
+
+**机制**（`.husky/pre-commit`）：
+
+1. 任何对 `src/` 或 `icons/` 的 staged 改动，必须同时 staged `_fork/CHANGELOG.md`
+   的改动，否则 commit exit 1
+2. 通过检查后照常交给 `lint-staged` 跑 prettier
+
+**怎么写记录**：
+
+- 在 `_fork/CHANGELOG.md` 末尾追加一条完整 blackbox 格式的记录
+  （开始/结束时间戳、类型、对象、原因、修改、验证、影响、撤回、author）
+- `npm run record:blackbox` 会 echo 一份字段清单提醒你——这是降低门槛，不是
+  替代思考
+
+**逃生口**：`git commit --no-verify`
+
+- 仅在确认是"非 _fork/ 价值的纯临时改动"时使用，例如 typo fix / 注释微调
+- **不是默认做法**——使用前先问"这次改动有没有信息价值？"，如果没价值不如
+  revert 而不是 `--no-verify` 绕过
+- 用了 `--no-verify` 必须在 CHANGELOG.md 当日/当批加一条"我用 --no-verify 绕过
+  的理由"，这是透明性要求
+
+**为什么是硬约束不是软约束**：
+
+- soft rule（"记得写"/"应该写"）靠 agent 自觉，会有几率失效（今天就有真实
+  失败案例：5 commit + 3 release + 2 issue + 1 图标，全部脱记超过 3 小时才被
+  发现）
+- hard rule（git hook 拒绝 commit）靠工具强制，**agent 能不能自觉到没关系**
+  ——它只要试图 commit 没写记录的改动就会被挡住
+
+**三层防御纵深**（这次只先实施第 1 层）：
+
+1. ✅ git pre-commit hook（已实装）—— 挡 99% 的"忘了记"
+2. ⏳ STATUS.md 软锁 + agent 自检（等今天 commit 上线后下次再做）
+3. ⏳ Sub-Store 端主动检查 generate 出来的 convert.min.js 是否含 `x-override-rules`（等下次发布时核查）
+
+## 同步上游更新
+
+1. 确认已经配置了 `upstream` remote：
+   ```bash
+   git remote add upstream https://github.com/powerfullz/override-rules.git
+   # 如果已经加过，这一步会报错，忽略即可
+   ```
+2. 拉取并合并：
+   ```bash
+   git fetch upstream
+   git merge upstream/main
+   ```
+3. 如果有冲突：冲突大概率出现在我们改过的那几个文件（`rule_providers.ts`/
+   `rules.ts`/`proxy_groups.ts`/`constants.ts`），逐个手动解决，解决完重新走
+   一遍"改完必须验证"的步骤
+4. 在 `_fork/CHANGELOG.md` 新增一条"上游同步"记录（写清楚同步到了上游哪个
+   commit/tag、有没有冲突、怎么解决的）
+5. 确认没问题后发布新版本（见下面"发布"）
+
+## 发布（在自己的 Fork 里执行，不是 upstream）
+
+```bash
+npm version patch   # 或 minor / major，视改动性质而定
+```
+这条命令会自动跑测试、更新版本号、生成 upstream 风格的 CHANGELOG（这个是
+上游工具生成的那份，不是我们的 `_fork/CHANGELOG.md`）、推送带 tag 的提交，
+触发 GitHub Actions 自动构建并推到 `dist` 分支。
+
+发布后确认 Actions 页面的 "Release Artifacts" 工作流跑完，然后确认最终链接
+可以正常访问：
+```
+https://cdn.jsdelivr.net/gh/<你的用户名>/override-rules/convert.min.js
+```
+（不带 `@` 版本号，jsDelivr 会自动取最新发布——发布脚本每次会把不带 `src-`
+前缀的纯版本号 tag 如 `v2.5.6` 指向最新产物。想锁定某个具体版本，用
+`@v2.5.6` 这种格式，注意不是 `@src-v2.5.6`。）
+
+## 首次搭建检查清单（还没做完的话，按这个顺序）
+
+- [ ] 在 GitHub 上 Fork `powerfullz/override-rules` 到自己账号
+- [ ] 把本地这份改动 push 到 Fork 仓库
+- [ ] 把 `src/rule_providers.ts` 里 `MyDirectCDN` provider 的
+      `YOUR_GITHUB_USERNAME` 占位符换成实际用户名（不换的话这个 provider
+      指向一个不存在的地址，构建出来的配置里这条规则会拉取失败）
+- [ ] Fork 仓库的 Actions 标签页里手动启用一次工作流
+- [ ] 按上面"发布"步骤跑一次 `npm version patch`
+- [ ] 确认 `dist` 分支产出正常，拿到最终链接
+- [ ] 在 Sub-Store 里把订阅指向的脚本链接换成这个新链接，实测生成的配置
+- [ ] 全部跑通后，更新 `_fork/STATUS.md`，把这几项待办勾掉

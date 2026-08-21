@@ -1,0 +1,2374 @@
+Claude：
+这份文档写得很清楚，事实层面基本够我做判断了。下面按你的四个问题回答，先给结论。
+
+---
+
+## 总体结论
+
+**推荐 A + C(轻量版)，明确不推荐 B。**
+
+B（`custom-patches` 补丁目录）看起来是"半自动"，实际上是把 git 已经做的事再手工做一遍：补丁文件和源码是两份真相，你每改一次 `src/*.ts` 就得记得同步补丁，忘了就静默失效；而且 `.patch` 依赖上下文行，上游一重构（比如这次 `rules.ts` 改成 `baseRules` 数组写法）补丁照样烂掉，只是把"merge 冲突"换成了更难读的"patch hunk failed"。发行版打包（quilt/dpkg）用补丁栈，是因为它们**没法**为每个上游版本维护 git 分支——你有 git，没必要退回去。
+
+真正治本的不是"换一种同步工具"，而是**把上游文件里的自定义改动从几百行压到十几行**。这就是 C，但它比你文档里估的轻得多——不需要"抽成独立模块 / 配置驱动"那种大重构，只需要**注入点(injection point)模式**：
+
+```ts
+// src/fork/groups.ts      ← 新文件，上游永远不会有，永不冲突
+export const forkGroups = (...) => [ /* AI服务 / AI故障转移 / ADOBE / AUTODESK */ ];
+
+// src/proxy_groups.ts     ← 上游文件，我们只留这两行
+import { forkGroups } from "./fork/groups";
+return [...baseGroups, ...forkGroups(params)];
+```
+
+`rules.ts` 因为有顺序要求，留三个点：`forkPrependRules`（MustDirect/MustProxy/MustReject 强制链）、一个中段插入点（MyDirectCDN / Adobe / Autodesk 优先级）、`forkAppendRules`。`constants.ts`、`main.ts` 各一行。
+
+目标是可量化的：**`git diff upstream/main -- src/` 里对上游已有文件的改动 ≤ 20 行，且全是 import + spread**。到那个程度，上游哪怕把 `rules.ts` 整个重写，你的处理也只是"整文件取上游 + 重新插回一行"，两分钟的事。这个改造工作量大概一天，比"再痛苦地手解三次 7 文件冲突"便宜。
+
+另外，你们没列但**收益/成本比最高的三件小事**：
+
+1. **`git config rerere.enabled true`** — 冲突解法会被记住，同一冲突第二次自动复用。
+2. **`.gitattributes` 干掉机械冲突**：`package-lock.json merge=ours`（然后 merge 后跑一次 `npm install` 重新生成，锁文件从来不该手解）。
+3. **根 `CHANGELOG.md` 的冲突是你们自己造的**：你们的 SOP 红线写着"不改上游 README/CHANGELOG"，但 `release.yaml` 里集成的 git-cliff 每次发版都在重写它。把 git-cliff 的输出路径改到 `_fork/CHANGELOG-generated.md`，这个文件从此永久零冲突。
+
+**还有一个语义层面的坑**：你们的版本号 v2.5.16 和上游 v2.7.0 在同一个命名空间里，既误导（2.5.16 < 2.7.0，但实际包含更多东西）又保证 `package.json` 每次同步必冲突。建议改成 `2.7.0+dl.1` 这类 semver build metadata，或者 `package.json` 的 `version` 永远跟上游、另加一个 `forkVersion` 字段注入 `x-override-rules`。这样冲突有机械规则可循：version 取上游，forkVersion 取我们的。
+
+---
+
+## 这次 v2.5.5 → v2.7.0 的具体执行
+
+**不要 cherry-pick 那 50 个 commit。**那 50 个里有大量迭代噪音（同一行被改过三次），重放它们等于把三次冲突全再经历一遍。**按功能重放，不按 commit 重放。**
+
+**先查一件事**：冲突列表里有 `src/node_parser.ts`，但你们表 B 的"自定义源码"清单里没有它。要么是你们改过而清单漏记，要么是它被别的改动带出来的。跑 `git diff ca977f0..main -- src/node_parser.ts` 查清楚——这是"自定义清单不完整"的信号，在重放之前必须封掉，否则重建的树会静默丢东西。
+
+步骤：
+
+```bash
+git tag pre-sync-v2.5.16              # 安全网
+git config rerere.enabled true
+git diff ca977f0..main --stat > _fork/upstream-sync/v2.5.5-to-v2.5.16.stat
+git diff ca977f0..main > _fork/upstream-sync/v2.5.5-to-v2.5.16.diff   # 审计资料，不是执行载体
+
+git fetch upstream --tags
+git checkout -b sync/upstream-v2.7.0 v2.7.0    # 以上游干净版本为底
+```
+
+然后分四类重放，每类一个 commit，message 统一加 `fork:` 前缀（以后 `git log --grep='^fork:'` 就是权威自定义清单）：
+
+| 类别 | 做法 |
+|---|---|
+| 纯新增文件（`_fork/`、`ruleset/*.list`、`icons/`、`scripts/`） | `git checkout main -- _fork ruleset icons scripts`，零风险 |
+| `src/rule_providers.ts`（上游没动） | 同上整文件取回，但取回后确认 v2.7.0 没有引入新的 provider 命名冲突 |
+| 4 个冲突源码文件 | 在 v2.7.0 新代码上**手工重新注入**，同时顺手做上面说的注入点抽取 |
+| `package.json` / lock / 根 CHANGELOG | 取上游，重新加回我们的 scripts/devDeps；lock 删掉 `npm install` 重生；CHANGELOG 改 git-cliff 输出路径 |
+
+**冲突时保留哪边——用这套判据，不要每次临场想：**
+
+- 上游改的是**结构/写法**（数组化、函数签名、类型定义）→ **一律取上游**。不为保留旧写法抵抗上游重构。
+- 我们要保的是**语义**（有哪些组、哪些 provider、规则的先后顺序）→ **一律保我们的**，但用上游的新写法重新表达。
+- 上游**删除**的东西（SSH 组、低倍率分组）→ **默认接受删除**，但先 `grep` 我们的 rules/groups/constants 有没有引用这些组名常量，有引用会直接编译失败或产出悬空策略组。
+- 上游**新增**的东西（Tailscale）→ **默认全收**，收完再单独决策要不要为它加自定义（比如 Tailscale 的 100.64.0.0/10 要不要进 MustDirect、TUN 排除是否和你现有直连清单打架）。
+- 生成物/锁文件 → **不解冲突，重新生成**。
+
+**验证是这次同步的关键闸门**，不能只跑 `tsc --noEmit` + `npm run build`：
+
+```bash
+git diff main sync/upstream-v2.7.0 --stat     # 逐行看，确认没有"意外丢失"
+```
+
+再用真实订阅数据分别调用新旧产物的 `main(config)`，把两份输出 YAML 做结构 diff。**验收标准**：差异应当恰好等于「上游的 Tailscale 新增 + SSH/低倍率组移除 + dns 重写」加「我们的自定义全部在位且顺序正确」，**不能有第三类差异**。出现第三类差异就是重放漏了东西。
+
+最后合回 main，用这个手法保住上游祖先关系（关键——否则下次同步又要从 v2.5.5 开始 diff）：
+
+```bash
+git checkout sync/upstream-v2.7.0
+git merge -s ours main          # 树保持 sync 分支的，但 main 成为父提交
+git checkout main
+git merge sync/upstream-v2.7.0  # fast-forward
+```
+
+从此 `git merge upstream/main` 只会看到 v2.7.0 之后的改动。注意这个手法的代价：老 main 的内容在 merge 语义上被"已合并"，任何重放时漏掉的自定义**未来不会被自动带回来**——所以上面那步逐行 diff 不能省。
+
+---
+
+## 关于 `@main` 动态拉取 `.list`
+
+这个设计的便利是真的，但有四个风险，其中两个你们大概率低估了：
+
+1. **jsDelivr 对分支引用有缓存，"下次拉取即生效"很可能不成立。** `@main` 这类可变引用在 jsDelivr 上有以小时计的 CDN 缓存（`@tag`/`@commit` 才是不可变永久缓存）。你们文档里那句假设值得实测一次——改一条 MustDirect 然后掐表看多久生效。如果确实有数小时延迟，SOP 里必须写明，否则以后排查"规则改了没生效"会浪费大量时间。
+
+2. **可复现性断裂**（我认为这是最实质的问题）。`convert.min.js` 是版本化的，它引用的规则数据是活的。同一个 v2.5.16 在不同时间点产生的实际分流行为不同，出故障时没法回答"当时的规则到底是什么"。
+
+3. **可用性**：jsDelivr 在大陆网络下不稳定。如果 `MustDirect.list` 拉取失败，mihomo 的行为取决于 provider 的 fallback 配置——最坏情况是"必须直连"的东西被代理出去。**建议把真正救命的几条（NAS 管理口、内网段、你自己的 VPS）用内联 RULE 或本地 provider 再兜一份**，不要只依赖远程拉取。
+
+4. 分支被误 push / 账号被盗时没有版本门槛，改动即时下发到所有客户端。
+
+**建议：不要全面版本化，改成"保留 @main + 增加可复现快照"。** 在 `release.yaml` 里加一步，发版时把当时的 `ruleset/` 目录打包进 GitHub Release assets（或同步一份到 `dist` 分支）。日常使用路径完全不变，零额外成本，但每个版本从此都有"当时规则数据"的不可变快照，可查可回滚。
+
+再细一层，两类 `.list` 其实诉求不同：`MustDirect/MustProxy/MustReject` 是应急型，需要即时生效，保持 `@main`；`Autodesk.list`（脚本生成）、`MyDirectCDN.list` 变化不频繁，完全可以跟版本走。
+
+---
+
+## 长期最佳实践
+
+你的直觉是对的：**少改上游源码、多加独立文件**。但要把它变成可执行的纪律，需要三样东西：
+
+- **一个硬指标**：每次同步后统计"上游已有文件被我们改了多少行"，写进 `_fork/STATUS.md` 当作**同步债务**。超过阈值（比如 30 行）就安排一次注入点重构。有数字才不会慢慢烂回去。
+- **一条改动前的自问**：每次想改上游文件时先问"能不能改成在 `src/fork/` 里定义、在上游文件里加一行引用？"。能就必须这么做。
+- **跟着 tag 走，不要攒。** 上游每出一个 minor 就同步一次。攒 11 个 commit 已经这么痛，攒到 30 个只会更痛，而且到那时你已经忘了自己当初为什么那样改。
+
+还有一条上限更高但不可控的路：**向上游提 PR，把注入点做成官方扩展机制**（比如 `main(config, extensions?)` 或一个 `custom.ts` 约定文件）。上游既然写了 `AGENTS.md`、有正规发布流程，说明作者在意可维护性，这类 PR 有机会被接受。真被接受，fork 成本降到接近零，而且不止你一个人受益。
+
+---
+
+两件按项目规矩需要你拍板的事：
+
+**这次是"换一种同步上游的方式"，三条 ADR 门槛全中**（推翻代价大、有明确备选、以后一定有人问为什么不用 merge）。要不要写成 `_fork/adr/000X-upstream-sync-strategy.md`？
+
+另外，如果采纳这套方案，`override-rules-fork-ops` Skill 里"同步上游更新"那一节（现在写的是 `git fetch upstream && git merge upstream/main`）就过时了。按红线我不自己动手改，先记在这里等你确认——确认后我把待改内容写进 `_fork/STATUS.md` 的已知盲点表，由你更新官方版本。
+
+
+ChatGPT：
+我核对了你给出的两个仓库和上游 `v2.7.0 / e88deb8` 的实际改动后，我的结论比较明确：
+
+## 结论先说
+
+**不建议单选 A / B / C。**
+
+我最推荐的是：
+
+> **A（同步 SOP） + 一个你们候选方案里还没有单独列出的 D（Git 原生“上游基底 + 自定义提交栈”） + 渐进式 C（只做轻量解耦）**
+
+其中：
+
+* **A：必须做**，作为操作规范和审计依据。
+* **B：不建议把 `.patch/.diff` 文件作为长期“真相源”维护。**
+* **C：方向正确，但现在不要大重构。**
+* **D：应该成为真正的长期同步机制。**
+
+一句话概括就是：
+
+> **把上游当“底座”，把你们的自定义当一组少量、语义清楚、可以反复重放的 Git commits；每次升级先换新底座，再重放自定义。**
+
+这比长期 `merge upstream/main` 更适合你们这个 Fork。
+
+---
+
+# 一、为什么我不推荐“长期 merge upstream/main”
+
+你们现在遇到的 7 个冲突并不是 Git 用错了，而是在暴露一个事实：
+
+**你们和上游已经在修改同一批“热点文件”。**
+
+尤其是：
+
+* `src/main.ts`
+* `src/proxy_groups.ts`
+* `src/rules.ts`
+
+而上游这次又不是简单增加两行规则。`v2.5.5 → v2.7.0` 的 11 个 commits 包含 Tailscale 的连续实现、代理组调整、DNS 修订以及 SSH 代理组删除。([github.com][1])
+
+例如现在上游 `rules.ts` 已经把 Tailscale 作为 `buildRules()` 的一个输入，动态插入 IPv4、IPv6 和 `ts.net` 规则；你们自己的 `rules.ts` 则在同一个位置承担 MustReject / MustDirect / MustProxy、Adobe、Autodesk、MyDirectCDN 等优先级控制。([GitHub][2])
+
+因此：
+
+> **以后继续 merge，也一定还会反复碰这些文件。**
+
+而且 merge 最大的问题不是“有冲突”，而是**它把“上游演进”和“本地产品需求”揉成一个结果，让下次的人很难看清某一段代码为什么存在。**
+
+---
+
+# 二、我建议增加方案 D：Git 原生 Custom Commit Stack
+
+它其实和你们已经想到的“以新上游为基底重放补丁”完全同方向，但不要另外维护 `.patch` 文件。
+
+因为：
+
+> **Git commit 本身就是最好的 patch。**
+
+建议未来的历史长期保持成这种逻辑：
+
+```text
+upstream v2.7.0
+    │
+    ├─ fork: 自定义 rule providers
+    ├─ fork: MustDirect / MustProxy / MustReject
+    ├─ fork: AI / AI fallback policy groups
+    ├─ fork: Adobe / Autodesk policy
+    ├─ fork: MyDirectCDN priority policy
+    ├─ fork: fork version metadata
+    └─ fork: release / blackbox infrastructure
+```
+
+下次上游出 `v2.8.0`：
+
+```text
+upstream v2.8.0
+    │
+    ├─ 重放 custom commit 1
+    ├─ 重放 custom commit 2
+    ├─ ...
+    └─ 重放 custom commit N
+```
+
+能自动应用的自动应用。
+
+冲突的那一个 commit 停下来处理。
+
+这样你看到的不再是：
+
+> “`rules.ts` 冲突了，到底怎么办？”
+
+而是：
+
+> “正在重放 **MustDirect/MustProxy/MustReject 优先级策略**，它和上游新的规则结构冲突了。”
+
+这是很大的维护性差异。
+
+---
+
+# 三、B 方案我反而不建议作为主方案
+
+你们提出：
+
+> `custom-patches/*.patch`
+
+乍看很好，其实长期容易出现一个新的双份真相问题：
+
+```text
+src/rules.ts
+        ↕
+custom-patches/rules.diff
+```
+
+以后修改 `src/rules.ts`，还必须记得同步 `.patch`。
+
+一旦漏一次，patch 就过期。
+
+所以我的建议是：
+
+**不要手工维护 patch 目录。**
+
+需要检查时随时：
+
+```bash
+git format-patch
+git diff
+git range-diff
+```
+
+生成即可。
+
+换句话说：
+
+> patch 可以是**临时产物**，不要成为第二套源代码。
+
+---
+
+# 四、这一次 v2.5.5 → v2.7.0，我不建议直接 rebase 50 commits
+
+这里我要特别区分“这一次”和“以后”。
+
+你们现在已有 **50 个 fork commits**。
+
+如果直接：
+
+```bash
+git rebase --onto upstream/v2.7.0 ca977f0 main
+```
+
+理论上成立。
+
+但实践上很可能会变成：
+
+> 50 个历史 commit 一个个重演，重复解决已经不存在意义的中间状态。
+
+所以**第一次迁移应该做一次“历史整理”**。
+
+### 我推荐这次这么做
+
+1. **给当前 v2.5.16 做永久备份 tag/branch。**
+2. 从干净的上游 `e88deb8 / v2.7.0` 新建同步分支。
+3. 用：
+
+   ```bash
+   git diff ca977f0..当前fork
+   ```
+
+   得到“最终自定义状态”。
+4. 不按 50 个历史 commits 搬，而按**功能意图**重新整理成大约 6～10 个自定义 commits。
+5. 每搬完一个功能就构建、验证。
+6. 最后用新分支替换 fork 主线。
+7. 从此以后才正式进入“rebase custom stack”模式。
+
+这里的关键是：
+
+> **第一次是 migration；以后才是 routine sync。**
+
+---
+
+# 五、这次几个冲突文件，我会这样处理
+
+这里绝对不要用文件级：
+
+```bash
+--ours
+--theirs
+```
+
+一把梭。
+
+判断原则应该是：
+
+> **结构/API 以上游为准；业务意图以 Fork 为准。**
+
+具体到你们现在的文件：
+
+| 文件                    | 我的处理                                                             |
+| --------------------- | ---------------------------------------------------------------- |
+| `CHANGELOG.md`        | **直接以上游为准**。你们已经明确根 CHANGELOG 属于上游；Fork 历史放 `_fork/CHANGELOG.md` |
+| `package-lock.json`   | **不要手工合并**，先合并 `package.json`，然后重新生成 lock                        |
+| `package.json`        | 人工整合 upstream dependency/tooling + fork scripts/version 机制       |
+| `src/node_parser.ts`  | 如果确实没有 fork 业务定制，**直接以上游为准**，尤其 Tailscale 节点解析不能拆开拿              |
+| `src/main.ts`         | 以上游 v2.7.0 流程为骨架，再重新插入 `x-override-rules` 元信息                    |
+| `src/proxy_groups.ts` | 以上游新版为骨架，保留 Tailscale，再加入 AI / AI fallback / Adobe / Autodesk    |
+| `src/rules.ts`        | **不要机械解冲突，直接以 v2.7.0 的新版函数重建 fork 规则优先级**                        |
+
+尤其 `rules.ts` 最值得“重新移植”。
+
+上游现在已经有 Tailscale 条件规则，而你们这边的 MustReject → MustDirect → MustProxy → Adobe / Autodesk 又具有明确的安全和业务优先级。([GitHub][2])
+
+所以应该设计出**新的最终顺序**，而不是试图让 Git 帮你判断哪几行留下。
+
+---
+
+# 六、Tailscale 应该按“一整个功能簇”吸收
+
+这点非常重要。
+
+不要这样想：
+
+> “我要上游 `proxy_groups.ts` 里的 Tailscale。”
+
+应该想：
+
+> **我要上游 v2.7.0 的完整 Tailscale capability。**
+
+因为它已经横跨：
+
+* node parsing
+* group construction
+* rules
+* TUN routing
+* types / arguments / main flow
+
+上游现在甚至会在检测到 Tailscale 时动态生成专用代理组。([GitHub][3])
+
+所以它应该整体落进新基底，然后验证你们自己的功能没有破坏它，而不是挑几个 commit 或几段代码搬进旧 fork。
+
+---
+
+# 七、建议第一次同步完成后，把 50 commits “压缩成语义层”
+
+不必只为了 Git 历史漂亮。
+
+真正目的在于以后上游升级时，让 Git 给你一个很好的**冲突定位器**。
+
+比如整理为：
+
+```text
+fork: add fork governance and audit infrastructure
+fork: add custom rule-provider data sources
+fork: add forced reject/direct/proxy policy
+fork: add AI service and fallback groups
+fork: add Adobe and Autodesk policies
+fork: add MyDirectCDN policy
+fork: add fork build/version metadata
+fork: customize release workflow
+```
+
+以后 Tailscale 再变：
+
+如果只冲到：
+
+```text
+fork: add AI service and fallback groups
+```
+
+你马上知道：
+
+> 冲突只涉及 AI proxy group 的表达方式。
+
+这就是你们想要的“补丁可审计”。
+
+---
+
+# 八、长期 C 应该做，但做“C-lite”，不要一次重构整个项目
+
+这一点我支持你们的方向：
+
+> **尽量少改上游源码，多增加独立文件。**
+
+但我不推荐现在把整个 fork 改成插件框架。
+
+更好的做法是逐步形成：
+
+```text
+src/fork/
+    constants.ts
+    rule_providers.ts
+    proxy_groups.ts
+    rules.ts
+```
+
+而真正的上游文件只留下少量接缝，例如概念上：
+
+```text
+upstream providers
+    +
+fork providers
+```
+
+或者：
+
+```text
+build upstream rules
+→ apply fork rule policy
+```
+
+最后你们真正碰上游代码的位置可能从几十处降低到：
+
+> **几个 import + 几个调用点。**
+
+这才是我认为值得追求的 C。
+
+不是“绝对零修改上游”。
+
+而是：
+
+> **把 fork delta 做小、集中、可识别。**
+
+---
+
+# 九、Submodule / subtree / ours-theirs，我都不推荐
+
+### Git submodule
+
+不适合。
+
+Submodule 擅长的是：
+
+> “A 项目依赖 B 项目，但不修改 B。”
+
+而你们的问题恰好是：
+
+> “我要修改上游内部逻辑。”
+
+所以解决不了核心问题。
+
+### Git subtree
+
+同样只是改变“代码怎么放进来”，并没有解决你们和 upstream 修改相同代码的问题。
+
+### `merge -X ours/theirs`
+
+风险更大。
+
+例如 `rules.ts`：
+
+* upstream Tailscale 要留；
+* fork MustDirect 要留；
+* upstream SSH 删除要留；
+* fork Adobe 优先级也要留。
+
+根本不存在一个：
+
+> “这个文件选 ours”
+
+或：
+
+> “这个文件选 theirs”
+
+能正确解决。
+
+---
+
+# 十、可以启用 Git `rerere`
+
+这是我建议加入 SOP 的一个小工具：
+
+```bash
+git config rerere.enabled true
+```
+
+Git 会记住以前你是怎么解决相同冲突的。
+
+以后 upstream 又在相邻位置改动时，有机会自动复用上次的解决结果。
+
+但要注意：
+
+> `rerere` 是**减少机械冲突劳动**，不是替代架构判断。
+
+---
+
+# 十一、`ruleset/*.list @main`：我认为可以保留，但必须补治理
+
+你们这个设计并不是错误。
+
+而且对：
+
+* MustDirect
+* MustProxy
+* MustReject
+
+这种运营型规则来说非常实用。
+
+你们当前代码确实把这些 provider 指向 Fork `@main`，而 Mihomo 本身又会按照 `interval` 周期重新抓取。你们的 MustDirect/MustProxy 等目前是 86400 秒更新周期。([GitHub][4])
+
+但它确实带来两个风险。
+
+### 1. 不可完全复现
+
+今天：
+
+```text
+convert.min.js v2.5.16
++
+MustDirect@main
+```
+
+和一个月后的：
+
+```text
+convert.min.js v2.5.16
++
+MustDirect@main
+```
+
+可能产生不同结果。
+
+所以：
+
+> **JS 版本固定 ≠ 完整运行配置固定。**
+
+这个必须在文档里明确。
+
+### 2. CDN 缓存
+
+这个问题是真实存在的。
+
+jsDelivr 官方目前明确说明，类似 `latest`/alias 这种非固定版本 URL 如果不 purge，用户可能最长等待 **7 天** 才得到更新。([jsDelivr][5])
+
+你们现在 release workflow 已经专门 purge `convert.min.js` 的 jsDelivr 缓存。([GitHub][6])
+
+**但是规则文件的 `@main` 更新也应该有同样的 purge。**
+
+这反而是我看完仓库后认为应该补的一项。
+
+建议增加一个很小的 Action：
+
+```text
+ruleset/*.list changed
+        ↓
+自动 purge 对应 jsDelivr URL
+        ↓
+fetch 验证
+```
+
+这个投入很小，收益很明显。
+
+---
+
+# 十二、我不建议为了“可复现”就完全取消 `@main`
+
+那会牺牲你们现在很有价值的能力：
+
+> **改规则无需重新发布 JS。**
+
+所以我推荐双层思想：
+
+### Live channel
+
+```text
+@main/ruleset/*.list
+```
+
+用于日常真正运行。
+
+优点：
+
+> 快速改策略。
+
+### Snapshot / rollback
+
+Git commit/tag 本身保存每次规则状态。
+
+每次重要 ruleset 修改记录：
+
+```text
+ruleset revision
+commit SHA
+时间
+原因
+```
+
+必要时能马上 pin 到某个 commit SHA 或回滚 main。
+
+也就是说：
+
+> **运行使用 moving channel，审计和恢复使用 immutable commit。**
+
+我认为比强迫所有规则文件跟 JS 一起发版更适合你们。
+
+---
+
+# 十三、我还建议你们补一个现在咨询稿里没提到的问题：版本号语义
+
+这个以后一定会碰到。
+
+你们现在：
+
+```text
+Fork package version = 2.5.16
+Upstream base = 2.5.5
+```
+
+目前很好理解。
+
+但同步之后：
+
+```text
+Upstream base = 2.7.0
+```
+
+那 Fork 是什么？
+
+如果继续：
+
+```text
+2.5.17
+```
+
+就会产生歧义。
+
+现在仓库确实还是 `"version": "2.5.16"`，而上游已经是 `2.7.0`。([GitHub][7])
+
+我建议以后至少把两个概念显式拆开：
+
+```text
+upstream_base: v2.7.0 / e88deb8
+fork_release: 独立版本
+```
+
+至于 fork release 最终采用：
+
+```text
+2.7.0-fork.1
+```
+
+还是：
+
+```text
+fork-2026.08.21.1
+```
+
+可以另行决定。
+
+关键不是具体命名。
+
+关键是：
+
+> **不要再让一个 `2.5.16` 同时承担“上游基础版本”和“Fork 自身迭代次数”两个含义。**
+
+---
+
+# 十四、这次同步必须做“行为验收”，不能只看 build PASS
+
+最低我会要求以下测试：
+
+1. `npm ci`
+2. lint / typecheck
+3. `npm run artifacts`
+4. 无 Tailscale 节点场景
+5. 有 Tailscale 节点场景
+6. MustReject / MustDirect / MustProxy 优先级
+7. AI 服务 + AI fallback
+8. Adobe / Autodesk
+9. MyDirectCDN
+10. TUN / fake-ip / QUIC 等参数组合的关键 smoke test
+
+最重要的是：
+
+> **拿同一份 fake proxy 输入，同时跑旧 v2.5.16 和新同步版本，比较生成 YAML。**
+
+差异应该只能落入两类：
+
+```text
+① 明确来自 upstream 2.5.5→2.7.0
+② 明确来自我们主动调整
+```
+
+出现第三类：
+
+```text
+“不知道为什么变了”
+```
+
+就不能发布。
+
+---
+
+# 最终推荐方案
+
+如果让我作为第三方给这个项目直接拍技术路线，我会定成：
+
+| 项目                              | 决策                                            |
+| ------------------------------- | --------------------------------------------- |
+| 当前 `merge upstream/main`        | **停止作为默认同步方式**                                |
+| A 同步 SOP                        | **采用**                                        |
+| B `.patch` 目录                   | **不作为长期真相源**                                  |
+| D Git custom commit stack       | **作为核心机制**                                    |
+| C 完全解耦                          | **不立即实施**                                     |
+| C-lite 减少 upstream touch points | **逐步实施**                                      |
+| submodule/subtree               | **不采用**                                       |
+| ours/theirs 自动合并                | **不采用**                                       |
+| Git rerere                      | **采用辅助**                                      |
+| `.list @main`                   | **保留**                                        |
+| ruleset CDN purge Action        | **建议增加**                                      |
+| upstream base 元数据               | **强烈建议增加**                                    |
+| 同步方式                            | **新 upstream 基底 → 重放语义化 fork commits → 行为验收** |
+
+所以我认为 Hermes 咨询稿里的“治本方向”本身**判断是正确的**。
+
+我只会把它再精确一步：
+
+> **不是“维护一套外部补丁文件”，而是把 Fork 本身整理成一套可重放的 Git-native patch stack。**
+
+而且**这一次 v2.5.5 → v2.7.0 不要机械重放现有 50 commits**。应当借这次机会，先把当前最终自定义状态重新整理为少量语义 commits，再正式建立以后的同步模型。
+
+这样第一次稍微多做一点，以后上游再出 2.8、2.9，维护成本才会真正降下来。
+
+[1]: https://github.com/powerfullz/override-rules/compare/ca977f0...e88deb8 "Comparing ca977f0...e88deb8 · powerfullz/override-rules · GitHub"
+[2]: https://github.com/LeiD215/override-rules/blob/main/src/rules.ts "override-rules/src/rules.ts at main · LeiD215/override-rules · GitHub"
+[3]: https://github.com/powerfullz/override-rules/blob/main/src/proxy_groups.ts "override-rules/src/proxy_groups.ts at main · powerfullz/override-rules · GitHub"
+[4]: https://github.com/LeiD215/override-rules/blob/main/src/rule_providers.ts "override-rules/src/rule_providers.ts at main · LeiD215/override-rules · GitHub"
+[5]: https://www.jsdelivr.com/tools/purge?utm_source=chatgpt.com "Purge CDN cache - jsDelivr"
+[6]: https://github.com/LeiD215/override-rules/blob/main/.github/workflows/release.yaml "override-rules/.github/workflows/release.yaml at main · LeiD215/override-rules · GitHub"
+[7]: https://github.com/LeiD215/override-rules/blob/main/package.json "override-rules/package.json at main · LeiD215/override-rules · GitHub"
+
+
+gemini：
+这份咨询稿的结构非常清晰，对问题、现状和诉求的定义达到了架构决策记录（ADR）的标准。
+
+针对您的诉求——**稳妥、省力、可长期维护，并保留自定义与上游新特性**，以下是详细的评估与建议：
+
+### 一、 路线评估：最推荐的方案组合
+
+**推荐结论：短期采用「Git Rebase 重放策略 + SOP 固化（A的升级版）」，长期全面转向「长线解耦重构（C）」。强烈不建议方案 B。**
+
+* **强烈不推荐方案 B（custom-patches）：** 代码补丁（`.patch` / `.diff`）高度依赖上下文行号。上游对 `src/rules.ts` 等文件进行了重写（如改为 `baseRules` 数组），补丁会瞬间失效且无法自动应用，维护成本极高。
+* **最佳中间态（您没想到的方案）：Git Rebase。** 您的初步思路“以新版本为干净基底，把我们这些补丁一项项重放回去”，这在 Git 中的原生实现就是 `git rebase`。与 `merge`（交织历史）不同，`rebase` 会把上游的最新代码作为地基，将您的自定义 commit 重新“长”在上面，完美契合您的治本思路。
+* **长治久安（方案 C）：** 只要您的自定义代码和上游代码在同一个文件（如 `src/rules.ts`）里物理混杂，每次上游重构您都会痛。必须通过工程化手段将其物理隔离。
+
+---
+
+### 二、 本次 v2.5.5 → v2.7.0 的最优执行步骤
+
+直接 Rebase 50 个 commit 可能会导致您在同一个文件上反复解决 50 次冲突。为了“保住全部自定义 + 吸收 Tailscale 等新特性”，推荐以下「压缩后变基（Squash & Rebase）」的打法：
+
+**1. 准备与备份**
+
+```bash
+git fetch upstream
+# 停留在您的 main 分支，先建一个备份，以防万一
+git branch main-backup-2.5.16
+
+```
+
+**2. 浓缩您的 50 个自定义 Commit**
+为了避免在 `rebase` 时解决 50 次碎片化冲突，建议先将您的 50 个改动合并为几个核心 Commit（例如：`feat: 增加 AI 与设计软件规则`、`chore: 增加 CI 与 fork 记录`）。
+*可以利用交互式变基：*
+
+```bash
+git rebase -i ca977f0 # ca977f0 是上游 v2.5.5 的 commit
+
+```
+
+*在弹出的编辑器中，将除了第一个 commit 之外的所有 `pick` 改为 `squash`，合并为一个或几个干净的“自定义全集 Commit”。*
+
+**3. 向 v2.7.0 变基（重放补丁）**
+
+```bash
+git rebase upstream/main
+
+```
+
+**4. 冲突解决策略（合并法则）**
+由于上游重写了 `rules.ts` 和 `dns.ts`，冲突必然发生。此时的解决原则是 **“上游架构为主，注入自定义为辅”**：
+
+* **CHANGELOG.md / package.json：** 直接使用上游（theirs）的，然后再手动补上您的版本号注入逻辑。
+* **src/rules.ts：** **接受上游的全部修改**（包含 Tailscale 路由排除和新的 `baseRules` 数组写法）。然后，将您的 `MustDirect/MustProxy/Adobe` 等规则，按照最新的数组语法，手动追加或插入到该文件合适的位置。
+* **src/proxy_groups.ts：** 接受上游移除 SSH 组的改动，将您的 AI / ADOBE 组手动添加到上游新的分组逻辑中。
+
+**5. 完成与强制推送**
+
+```bash
+npm run artifacts # 验证编译是否通过，逻辑是否正常
+git rebase --continue
+git push origin main --force # 由于重写了历史，需要 force push
+
+```
+
+---
+
+### 三、 关于 `@main` 动态拉取 `.list` 的风险评估
+
+您当前的 `rule-provider` 设计十分轻量，但确实存在两个需要注意的风险点，建议进行轻度改造：
+
+1. **CDN 缓存刺客（最大的直接风险）：**
+`[https://cdn.jsdelivr.net/gh/LeiD215/override-rules@main/](https://cdn.jsdelivr.net/gh/LeiD215/override-rules@main/)...` 这种写法，jsDelivr 默认有 **24 小时左右的缓存**。您在 `main` 分支更新了 `.list`，客户端拉取到的可能还是昨天的数据。
+* **缓解方案：** 要么在 Mihomo/Clash 配置的 url 后面拼接无意义的时间戳参数打穿缓存（如 `?t=20260821`），要么改用 `raw.githubusercontent.com`（缓存时间较短，通常 5 分钟），但这取决于客户端的网络连通性。
+
+
+2. **版本不可复现（“时光机”失效）：**
+如果未来 `.list` 里的规则格式需要配合 `convert.min.js` 的新逻辑，旧版本的 JS 读取新版本的 `.list` 可能会崩溃。
+* **建议：** 如果 `.list` 只是纯粹的域名/IP 文本增删，继续使用动态拉取没问题，**不值得为了纯文本数据走发版流程**；但如果涉及语法或结构的改变（例如新增了特定标签），则必须新建文件（如 `MustDirect-v2.list`）或跟随 Release 版本号固化拉取地址（`@v2.X.X`）。
+
+
+
+---
+
+### 四、 长期维护最佳实践：解耦重构（方案 C 的落地）
+
+为了让以后的同步像喝水一样简单，您的核心目标是：**实现对上游核心文件的“零侵入”或“单行侵入”。**
+
+以 `src/rules.ts` 为例，上游改成了 `baseRules` 数组，您应该这样做：
+
+**1. 建立自定义模块目录**
+新建 `src/custom/` 目录（例如 `src/custom/my_rules.ts`），在这个文件里用上游相同的类型定义您的规则：
+
+```typescript
+// src/custom/my_rules.ts
+import { Rule } from '../types';
+export const myCustomRules: Rule[] = [
+    // 您的 MustDirect, Adobe, Autodesk 等逻辑
+];
+
+```
+
+**2. 单行侵入上游文件**
+在合并后的上游 `src/rules.ts` 中，只做最少量的修改：
+
+```typescript
+// src/rules.ts (上游文件)
+import { myCustomRules } from './custom/my_rules'; // 侵入点 1
+
+export const baseRules = [
+    // ... 上游原有的几十行规则 ...
+    ...myCustomRules, // 侵入点 2：将您的规则解构注入
+];
+
+```
+
+**为什么这样做最好？**
+下次上游无论怎么大改 `src/rules.ts` 内部的规则顺序或增删，只要不改变抛出的数组结构，Git 合并时极大概率会自动成功，或者只需要您把 `...myCustomRules` 这行代码重新贴一次即可。这才是个人 Fork 长期跟随上游的终极形态。
+
+
+火山方舟：
+<thinking>
+用户现在需要评估这个fork同步的方案，我将结合Git最佳实践与项目情况，梳理用户的四类相关问题。我已梳理清楚待评估项目的相关情况，明确了本次同步涉及的冲突文件范围，同时核实到目前暂未发现涉及dns模块的相关冲突。
+
+我已明确同步方案的选型思路：C方案是长期解耦最优方向，但本次优先解决同步问题，B方案补丁维护成本较高，推荐采用跟踪上游分支、自定义分支基于上游分支rebase的fork标准策略。
+
+现有50个main端自定义commit包含源码、规则数据、文档等多类改动，我首先需区分其中源码逻辑修改与其他类自定义内容。
+
+我确认新增文件无冲突，本次同步采用组合方案，短期落地、长期逐步推进解耦。
+
+我发现之前的同步方案选型思路存在优化空间，Git原生分支管理比手动维护patch文件可靠性更高，无需额外搭建补丁管理工具，还能清晰标识各自定义功能对应的冲突条目。
+
+我进一步确认了分支方案的可靠性，同时明确C方案解耦的核心方向，可通过插件化或配置驱动扩展降低后续同步冲突。
+
+我梳理出具体的扩展规则，可新增自定义规则、代理组、规则提供者等文件，仅在入口处做少量注册操作，能大幅降低同步冲突概率。
+
+C方案的解耦仅需极小改动，无需大规模重构，具体可新建独立自定义模块存放所有自定义逻辑，仅修改入口文件做配置合并，其余上游源码完全不做修改。
+
+采用该解耦方案后，仅需极少量适配上游变更，其余文件完全无需改动，不会产生同步冲突，属于低风险小范围重构，无需大规模长线重构。
+
+本次同步可优先完成自定义分支重放，时间充足的话同步同时做自定义代码抽离到独立目录的解耦操作，一劳永逸降低后续同步冲突。
+
+我已梳理出本次同步的核心判断规则，纯新增文件无需顾虑冲突直接保留，冲突均来自业务代码、配置相关改动，同时已明确两个待比对分支的溯源及提交范围。
+
+我梳理了三种同步方案的特点，merge会生成合并commit，rebase可保留线性清晰的提交历史，未来排查问题更便利，后续移除无需改动其他代码。
+
+我发现现有50个commit若存在功能混杂非原子的情况，rebase时冲突排查会较麻烦，可先导出差异分类梳理为原子commit，同步同时优化提交历史。
+
+我已明确50个自定义commit多为非原子操作，仅涉及7个冲突文件的内容会引发同步冲突，最优方案为先导出基线差异梳理自定义清单，基于上游v2.7.0代码重新生成原子化commit，同步抽离自定义代码到独立目录。
+
+我确认该方案可减少同步冲突次数、优化提交历史，后续同步上游新版本时冲突定位更便捷，目前已梳理出前两项执行准备步骤：给当前main分支打备份标签并推至远程，添加上游代码关联后拉取最新上游代码及标签。
+
+我将导出当前分支相对于指定基线的完整差异，梳理自定义清单，把文件分为纯新增无冲突、修改的上游源码、配置CI、上游不应修改四类，明确需保留的上游自定义逻辑会单独抽至独立目录，上游原文件直接沿用官方版本，自定义变更单独存放避免冲突。
+
+我梳理出剩余上游自定义文件的处理规则：src/types.ts仅做类型扩展，不修改上游原文件；src/node_parser.ts若无必要自定义逻辑直接沿用上游版本，有自定义需求则抽至独立目录；src/main.ts仅保留少量版本相关改动，逻辑调整极少，冲突易解决。我已明确同步分支的创建逻辑，将基于上游v2.7.0的稳定标签新建干净分支，优先导入纯新增的无冲突文件，双方均有改动的package.json等文件需重点核对。
+
+我明确了package.json的处理规则：基于上游版本补充自定义脚本与依赖，暂对齐上游版本号，后续发布时再调整为fork专属版本号。
+
+我明确了剩余配置文件的处理规则：package.json冲突手动合并，同步后运行命令重新生成lock文件；发布工作流文件优先保留我方已调整的核心步骤，无需改动上游版本。
+
+我已明确配置类文件的处理规则：独有的专属配置文件直接沿用，根目录的CHANGELOG、README不做修改，自定义说明单独存放在_fork目录或新增的自定义文档中。同时我梳理了核心源码的处理方案：不覆盖上游源码，新建独立目录存放所有自定义逻辑，通过类型声明扩展等方式完全不修改上游原文件。
+
+我已明确src/custom下两个文件的具体存放规则，同时确定仅修改src/main.ts做配置合并，其余上游源码完全不改动。
+
+我已明确相关调整规则：src/main.ts仅新增两处代码即可完成配置合并，逻辑改动极小，适配上游变更时冲突易排查定位；node_parser.ts优先复用上游逻辑，独有逻辑可抽至自定义目录或做标记，无需改动上游原文件即可同步其更新内容。
+
+上游移除的SSH代理组、低倍率节点分组需对照更新我方代理组配置，应用完所有自定义后需完成构建验证，确认自定义及上游相关功能均正常。
+
+我会先核对现有配置确保功能符合预期，再按功能拆分提交代码，之后合并分支并打标发布。
+
+我补充两个实用操作技巧：需修改上游源码时加[CUSTOM]标记快速定位；冲突判断遵循规则，通用逻辑以上游为准、独有自定义功能以我方为准，文档类文件直接沿用上游版本。我明确了四类核心源码文件的处理规则：dns、node_parser、package.json直接复用上游内容，仅补充我方独有配置；规则、代理组文件保留上游结构，自定义内容单独扩展不改动上游原定义。
+
+我明确src/main.ts仅保留版本注入与自定义合并逻辑，其余沿用上游核心代码；冲突需逐个手动解决，完成后必须验证功能。同时无需额外维护patch目录，git历史已足够支撑后续同步排查。
+
+本次自定义清单、冲突解决记录可存至_fork/sync目录作为参考，无需维护可执行patch文件。我还梳理了长期优化的分支策略，通过独立upstream分支跟踪上游版本、自定义分支基于上游tag rebase的模式，可大幅降低后续同步冲突，提升发布效率。
+
+我梳理了rule-provider采用@main动态拉取.list设计的四类核心风险：版本不可复现、CDN缓存延迟或异常、误操作无缓冲、服务可用性受影响。
+
+我梳理出该规则版本化的折中方案，可兼顾规则无需发版实时生效与可复现可靠性的需求，一是单独配置独立版本通道，用固定标签映射最新规则提交，二是保持@main动态拉取，增加版本回退与校验能力。
+
+我梳理出多套方案的适用场景，个人或小范围使用场景下，@main动态拉取的方式风险可控，可通过前置校验、手动刷新缓存、记录溯源信息等方式降低风险，适配该场景需求。
+
+我梳理出该场景下的落地优化方案，无需改动上游核心代码，仅需调整自定义配置、加前置校验、配置链路注入溯源标识即可，无需额外搭建复杂的自动化流程。
+
+后续若需更高稳定性，可采用规则版本双通道策略，稳定版固定规则引用commit hash，开发版沿用@main。我还梳理出6项fork长期维护最佳实践，覆盖源码修改、提交管理、上游同步等核心维度，可有效降低后续维护冲突与工作量。
+
+我补充了第7、8两项fork长期维护最佳实践，同步前做好备份记录、通用功能优先向上游贡献PR，同时明确subtree与submodule适用于项目依赖独立第三方项目的场景。
+
+当前fork场景完全没必要使用submodule/subtree，采用常规fork+rebase+自定义目录的方案最简单可靠；git merge的ours/theirs策略仅明确需保留某一方内容时才可使用，其余冲突需手动处理。
+
+我梳理了cherry-pick的适用场景，自定义commit干净原子可选用，否则直接在新分支重应用更稳妥。
+
+我梳理出几项核心调整要求：代理配置文件复用上游逻辑即可，需将自定义规则抽离适配新的baseRules结构，node_parser优先复用上游逻辑，独有自定义内容移至自定义目录。
+
+我补充两项落地要求：验证环节新增CI步骤自动校验构建与配置合法性；版本号可采用上游版本加fork后缀的规则，也可沿用原有序列，在fork变更日志说明即可。
+
+构建产物发布至dist分支不受源码同步影响，仅需保障构建正常即可；无需额外引入git worktree等工具，普通分支方案就足够。
+
+我补充了几项实用的长期维护优化技巧：全局开启git rerere可自动复用历史冲突解决方案；npm锁文件冲突直接删除后重新安装生成；构建产物无需纳入版本控制，规则变更时可自动刷新CDN缓存。
+
+我补充了几点fork维护相关要点：个人仓库权限可控可防范恶意PR，长期不改动上游目录结构可降低同步冲突，规则与源码分离设计可避免同步冲突，接下来我将整理为结构清晰、可执行的正式回答。</thinking>
+# Fork 项目上游同步方案评估与执行指南
+## 一、路线推荐：短期结构化重放 + 长期最小化解耦
+结合你的项目规模、自定义特点和长期维护需求，**不建议单选 A/B/C，推荐采用「以 Git 原生 rebase 能力为核心，替代人工补丁维护；本次同步顺便完成轻量化解耦；沉淀 SOP 兜底」的组合路线**，优先级从高到低如下：
+
+### 1. 核心主线：Git 分支+原子化 commit+rebase，替代 B 方案的补丁目录
+你考虑的 B 方案（维护 .patch 文件）会带来额外的补丁与源码同步成本，且容易出现补丁过时、上下文不匹配的问题。Git 本身就是最可靠的补丁管理工具：
+- 维护一个纯上游跟踪分支，永远不写入自定义代码，仅与上游 tag/main 同步；
+- 所有自定义功能拆分为**原子化、语义化的独立 commit**，基于上游发布 tag 做 rebase 重放，冲突会精准定位到对应功能的 commit，无需额外维护补丁文件；
+- 开启 `git rerere` 自动记录冲突解决方案，后续同步遇到相同冲突会自动复用解决逻辑。
+
+### 2. 本次同步顺便落地：轻量化解耦（C 方案的低成本落地，非大规模重构）
+你不需要做重度重构，只需要遵循「**能新增文件绝不修改上游源码**」的原则，把现有自定义逻辑从上游文件中抽离到独立的 `src/custom/` 目录，仅在入口文件保留极少的注册代码：
+- 自定义规则、代理组、provider、常量、类型扩展全部放在 `src/custom/` 下独立维护；
+- 仅修改 `src/main.ts` 不超过 5 行代码，完成自定义配置与上游生成结果的合并；
+- 不得不修改上游源码的场景，用 `// [CUSTOM-START]/[CUSTOM-END]` 标记边界，未来同步直接搜索标记即可快速定位。
+> 该重构只是代码挪移，没有新业务逻辑，工作量小、风险极低，完成后未来上游同步 90% 以上的场景不会有冲突。
+
+### 3. 兜底：A 方案 SOP 文档化
+把同步流程、冲突处理原则、自定义清单沉淀到 `_fork/sync/` 目录下，作为操作手册和故障回溯依据，不需要作为核心维护手段。
+
+### 不推荐的方案
+- **Git submodule/subtree**：仅适合依赖独立外部项目的场景，你是 Fork 后修改核心逻辑，用子模块会大幅增加复杂度，无收益；
+- **整文件 merge 策略（ours/theirs）**：仅可用于完全放弃一方的文件（如上游 CHANGELOG），绝对不能用于源码文件，会直接丢失上游新功能或你的自定义逻辑；
+- **长期靠手工 merge**：攒的版本越多，冲突越难解，且历史混乱不利于回溯。
+
+---
+
+## 二、本次 v2.5.5 → v2.7.0 同步最优执行步骤
+核心原则：**以上游 v2.7.0 为干净基底，重放自定义功能，而非直接在现有代码上解 merge 冲突**，避免重复解冲突、同时整理提交历史。
+
+### 前置准备（安全第一）
+1. 给当前 main 分支打备份标签，防止操作失误丢失代码：
+   ```bash
+   git tag backup/main-before-sync-v2.7.0
+   git push origin backup/main-before-sync-v2.7.0
+   ```
+2. 配置上游仓库并拉取最新代码：
+   ```bash
+   git remote add upstream https://github.com/powerfullz/override-rules # 已配置可跳过
+   git fetch upstream --tags
+   ```
+3. 导出自定义差异清单，用于核对：
+   ```bash
+   mkdir -p _fork/sync
+   # 导出相对于基线 v2.5.5(ca977f0) 的所有改动文件列表
+   git diff ca977f0..main --name-status > _fork/sync/v2.7.0-custom-files.txt
+   ```
+
+### 步骤1：基于上游 v2.7.0 新建干净同步分支
+```bash
+git checkout -b sync/v2.7.0 v2.7.0 # 以上游发布 tag 为基线，稳定性最高
+```
+此时分支代码与上游 v2.7.0 完全一致，自动包含 Tailscale 支持、dns.ts 重写、rules.ts 重构等所有上游改动。
+
+### 步骤2：应用无冲突的纯新增内容
+这类内容上游完全没有，直接从旧 main 分支拉取即可，100% 无冲突：
+```bash
+git checkout main -- \
+  _fork/ \
+  ruleset/ \
+  icons/ \
+  scripts/sync-autodesk-list.sh \
+  .husky/ \
+  scripts/build.mjs
+```
+> 注意：根目录 `README.md`、`CHANGELOG.md` 属于上游维护文件，**不要拉取你的改动**，你的自定义说明统一放到 `_fork/README.md` 或 `CUSTOM.md` 中，避免未来冲突。
+
+### 步骤3：处理配置与 CI 文件冲突
+| 文件 | 处理方式 |
+|------|----------|
+| `package.json` | 以上游 v2.7.0 为基础，手动合并你的自定义：保留上游的依赖版本、脚本更新，追加你需要的 devDependencies（git-cliff/husky 等）、自定义构建脚本；版本号暂时对齐上游 `2.7.0`，发版前再改为你的 fork 版本（如 `2.7.0-fork.1`） |
+| `package-lock.json` | **不要手动解冲突**，合并完 package.json 后直接运行 `npm install` 重新生成锁文件 |
+| `.github/workflows/release.yaml` | 保留你的发布流程（src-tag 触发、构建推 dist、git-cliff 等），如果上游有新增构建校验步骤可以合并进来，上游的发布逻辑如果和你的流程冲突直接以上游为基础加你的步骤即可 |
+| 根目录 README/CHANGELOG | 直接用上游版本，你的变更记录写到 `_fork/CHANGELOG.md` |
+
+### 步骤4：核心：重放源码自定义，同时完成解耦
+不要直接覆盖旧的 src 文件，而是以 v2.7.0 的新结构为基础，把你的自定义逻辑抽离到 `src/custom/` 目录：
+1. 新建 `src/custom/` 目录，按功能拆分文件：
+   ```
+   src/custom/
+   ├── constants.ts      # 你的 AI_FALLBACK/ADOBE/AUTODESK 等常量
+   ├── types.ts          # 用 TS 声明合并扩展上游类型，不修改原 types.ts
+   ├── rule-providers.ts # MustDirect/MustProxy/Autodesk 等自定义 provider
+   ├── proxy-groups.ts   # AI服务/ADOBE/AUTODESK 等自定义代理组
+   ├── rules.ts          # 自定义规则链（强制规则、优先级规则）
+   └── index.ts          # 统一导出 mergeCustomConfig 函数，负责把自定义内容合并到上游配置
+   ```
+2. 仅修改 `src/main.ts`，保留极少量自定义代码：
+   - 保留你的版本元信息（`x-override-rules` 头）注入逻辑；
+   - 在上游生成基础配置后，加 2 行代码调用自定义合并逻辑：
+     ```typescript
+     import { mergeCustomConfig } from './custom';
+     // ...上游生成 baseConfig 的逻辑...
+     const finalConfig = mergeCustomConfig(baseConfig);
+     ```
+3. 特殊文件处理：
+   - `src/rules.ts`：上游已重写为 `baseRules` 数组，**不要修改原数组**，在 `mergeCustomConfig` 中控制规则拼接顺序（你的强制规则按原优先级放在最前/对应位置即可）；
+   - `src/node_parser.ts`：先通过 `git diff ca977f0..main -- src/node_parser.ts` 确认你的改动，如果是通用能力上游 v2.7.0 已支持（如 Tailscale 节点解析）则直接删除你的改动；如果是个人自定义逻辑，尽量包装到 custom 目录，确实需要修改上游文件的用 `[CUSTOM]` 标记；
+   - `src/dns.ts`：你未修改过，直接保留上游的 fake-ip 重写结果，无需任何改动。
+
+### 步骤5：构建验证（必须做，不要跳过）
+1. 安装依赖并构建：
+   ```bash
+   npm install
+   npm run artifacts # 你的全量构建命令
+   ```
+   确保无 TS 编译错误，正常生成 convert.min.js 和 yamls。
+2. 功能验证：
+   - 本地用 Mihomo/Sub-Store 加载生成的脚本，确认你的自定义规则、代理组、provider 行为与之前完全一致；
+   - 验证上游新功能：Tailscale 节点正常解析、TUN 路由排除生效、fake-ip-filter 新规则正常；
+   - 确认上游移除 SSH/低倍率分组后，你的代理组没有引用不存在的上游组，无配置报错。
+3. 建议给 CI 加一步配置校验：构建后用 `mihomo -t` 校验生成的 YAML 语法合法性，避免低级错误。
+
+### 步骤6：整理原子化提交并发布
+按功能拆分 commit，保证每个 commit 只做一件事，未来 rebase 时冲突可精准定位：
+```bash
+# 示例提交结构
+chore: 对齐上游 v2.7.0 基线
+feat(custom): 新增强制规则链（MustDirect/MustProxy/MustReject）
+feat(custom): 新增 Adobe/Autodesk 代理组与优先级规则
+feat(custom): 新增 AI 服务代理组与故障转移策略
+feat(custom): 新增 MyDirectCDN 规则与 provider
+chore(ci): 集成自定义发布流程与构建脚本
+docs: 更新 fork 维护文档与 SOP
+```
+验证通过后合并到 main（个人 Fork 可直接强制推送，因为已有备份 tag），按你的流程打 `src-v2.7.0-fork.1` 标签发布即可。
+
+---
+
+## 三、冲突判断通用原则
+遇到冲突时不要直接选一方，按以下优先级判断：
+1. **上游通用核心逻辑**：以上游为准，包括 dns 解析、节点解析、核心规则框架、通用优化，不要为了你的自定义改动上游核心结构；
+2. **个人专属扩展逻辑**：以你的自定义为准，包括专属规则、代理组、provider、版本信息，这类逻辑上游不存在，不会冲突；
+3. **交叉适配场景**：手动把你的自定义逻辑嫁接到上游的新结构上（比如上游重写了 rules 数组，就把你的规则拼到新数组结构里，不要回退上游的重构）；
+4. **完全无自定义的上游文件**：直接用上游版本，比如 CHANGELOG、dns.ts、你没改过的工具文件。
+
+---
+
+## 四、`@main` 动态拉取 ruleset 的风险与优化建议
+这个设计非常适合规则频繁迭代的场景，收益（改规则无需发版、秒级生效）远大于成本，不需要全量版本化，但需要补几个措施规避风险：
+
+### 现有风险
+1. **版本不可复现**：Release 版本的 convert.min.js 与 main 分支规则解耦，问题排查时无法还原发布时的规则状态；
+2. **CDN 缓存延迟**：jsDelivr 对分支资源默认缓存 12 小时，不同地区用户可能拿到不一致的规则版本；
+3. **误操作影响范围大**：错误提交规则会直接同步给所有用户，无缓冲期。
+
+### 优化措施（低成本，无需改架构）
+1. **加规则提交校验**：pre-commit 钩子校验 .list 文件格式（无空行、无非法字符、域名/IP 合法性），避免坏规则提交；
+2. **自动刷新 CDN 缓存**：在 CI 中加一步，当 `ruleset/` 目录有改动时，调用 jsDelivr Purge API 自动刷新对应文件，无需等缓存过期；
+3. **可追溯标记**：构建时把当前 commit hash 注入到配置的 `x-override-rules` 头中，排查问题时可以快速对应到代码版本；
+4. **规则改动记录**：每次改 ruleset 在 `_fork/CHANGELOG.md` 记录变更内容和 commit hash，方便回溯。
+
+### 什么时候需要版本化？
+如果后续用户量增长、对稳定性要求极高，可以采用双轨制：
+- 开发/预览版：引用 `@main` 规则，享受实时更新；
+- 正式 Release：构建时自动把规则引用替换为当前 commit hash（而非分支名），保证发布版本配置永久可复现。
+个人使用阶段完全不需要做这步，动态拉取的效率更高。
+
+---
+
+## 五、Fork 长期维护最佳实践
+1. **最小化上游改动原则**：这是最核心的长期维护原则——能加新文件就不改上游文件，能配置驱动就不改核心逻辑，不得不改的地方加 `[CUSTOM]` 标记，控制改动行数；
+2. **固定分支模型**：
+   - `upstream` 分支：纯上游镜像，永远只 fast-forward 上游代码，不提交任何自定义内容；
+   - `main` 分支：你的自定义分支，永远基于上游的发布 tag 做 rebase，不要用 merge 拉取上游代码，保持线性历史；
+3. **小步快跑同步**：上游发布小版本（如 v2.7.1）就同步一次，不要攒多个大版本再同步，版本跨度越小，冲突概率越低、解决成本越低；
+4. **通用能力向上游贡献**：如果你的自定义功能是通用的（比如 Autodesk 规则、通用 bug 修复），尽量提 PR 贡献给上游，合并后你就可以删除对应自定义代码，从根源减少维护量；
+5. **开启 git rerere**：执行 `git config --global rerere.enabled true`，Git 会自动记住你解决过的冲突，后续同步遇到相同冲突会自动应用解决方案，长期下来能省大量时间；
+6. **自动化兜底**：CI 中加构建、配置校验、自定义功能冒烟测试，同步时只要 CI 通过就基本不会出问题，减少人工验证成本。
+
+---
+
+## 总结
+本次同步不要直接解 merge 冲突，以上游 v2.7.0 为干净基底重放自定义，顺便把逻辑抽离到 `src/custom/` 目录，虽然首次操作多了一步代码挪移，但完成后未来上游同步的成本会降低 90% 以上；动态规则拉取的设计保留，加少量校验和缓存刷新即可；长期坚持「少改上游、多扩展、小步同步」的原则，个人 Fork 的维护成本会非常低。
+
+
+DeepSeek：
+以下评估基于你提供的项目事实，目标是：**保住你的 50 个自定义提交，吸收上游 v2.7.0 的 Tailscale 等有价值改动，同时把未来的同步成本降到最低。**
+
+## 总体结论（先说答案）
+
+**最推荐：A + B 组合，C 作为长期演进目标，不要一上来就做 C。**
+
+具体说：
+
+- **短期（本次 v2.5.5 → v2.7.0）**：不要继续在原 `main` 上做 `merge`，也不要直接 `rebase` 50 个提交。改用 **“基于上游新版本建立干净基线 + 模块化补丁重放”**，即 B 方案的一次性落地。
+- **中期**：把自定义补丁沉淀进 `_fork/patches/`，并配两个脚本（更新补丁、应用补丁），这就是 B 的固化。
+- **长期**：围绕“少改上游源码、多扩展独立文件/provider”逐步重构，向 C 靠近，但不要阻塞本次同步。
+
+不推荐 `git submodule` / `subtree`：你们是 fork 同一个项目，不是“仓库套仓库”，subtree 会把上游历史搅乱，收益很低。  
+不推荐 `merge -X ours/theirs`：会静默丢弃一边改动，无法审计。
+
+---
+
+## 1. 最推荐的路线：A + B 组合，C 作为长期目标
+
+### 为什么 B 比“一次性大 merge”更适合你
+
+你的痛点是：**merge 把“你的自定义”和“上游演进”混在一个合并提交里，冲突 7 个文件，人工取舍困难。**
+
+B 方案的本质是把你的自定义变成**一组可独立应用、可单独测试、可审计的补丁文件**。升级时：
+
+1. 先切到上游新版本干净基底；
+2. 按顺序 `git apply --3way` 你的补丁；
+3. 每个补丁如果冲突，你能立刻知道是“哪一块自定义逻辑”被上游影响；
+4. 冲突解决后，这个补丁就更新了，下次升级直接复用。
+
+这比 merge 可控得多，而且补丁目录本身就是一份**活文档**，告诉你“我们到底改了上游什么”。
+
+### A 方案不能省
+
+A 是 SOP，它决定你们未来**会不会还拖到 11 个 commit 才同步**。  
+B 是工具，A 是纪律。只有工具没有纪律，补丁会慢慢腐烂；只有纪律没有工具，每次同步还是手忙脚乱。
+
+### C 方案：方向正确，但不要现在做
+
+C 的“解耦重构”确实能让未来 merge 几乎零冲突，但需要一次较大改动。在还没同步到 v2.7.0 之前就做 C，相当于**一边追上游一边重构**，风险叠加。
+
+建议本次先完成同步，然后在下个迭代里逐步做解耦，比如：
+
+- 把你的自定义 rule-provider 从 `src/rule_providers.ts` 拆到独立文件 `src/custom_providers.ts`；
+- 把你的自定义 groups/rules 从 `src/proxy_groups.ts` / `src/rules.ts` 拆到 `src/custom_groups.ts` / `src/custom_rules.ts`；
+- 在 `main.ts` 入口处只增加一个“注册自定义逻辑”的调用。
+
+这样上游改 `proxy_groups.ts` / `rules.ts` 时，你几乎不用碰。
+
+---
+
+## 2. 本次 v2.5.5 → v2.7.0 的最优执行步骤
+
+### 总体原则
+
+**不要在原 `main` 上直接 merge。**  
+**先造一个干净的上游 v2.7.0 基线分支，再把你的自定义作为补丁打上去，测试通过后再替换/合并回 `main`。**
+
+### 具体步骤
+
+#### 第 1 步：备份现场
+
+```bash
+git checkout main
+git branch backup/main-before-sync-$(date +%F)
+git push origin backup/main-before-sync-$(date +%F)
+```
+
+#### 第 2 步：准备补丁
+
+从你的 fork 基线 `ca977f0` 到当前 `main`，导出你的自定义 diff。  
+**不要一次性导出所有文件**，而是按逻辑拆成多个 patch，例如：
+
+```bash
+mkdir -p _fork/patches
+
+# 规则数据相关（无冲突，但作为补丁保留）
+git diff ca977f0..main -- ruleset/ > _fork/patches/001-ruleset-data.patch
+
+# 核心源码：providers
+git diff ca977f0..main -- src/rule_providers.ts > _fork/patches/002-rule-providers.patch
+
+# 核心源码：groups
+git diff ca977f0..main -- src/proxy_groups.ts > _fork/patches/003-proxy-groups.patch
+
+# 核心源码：rules
+git diff ca977f0..main -- src/rules.ts > _fork/patches/004-rules.patch
+
+# 核心源码：constants / types / main
+git diff ca977f0..main -- src/constants.ts src/types.ts src/main.ts > _fork/patches/005-constants-types-main.patch
+
+# 配置与 CI
+git diff ca977f0..main -- package.json package-lock.json release.yaml .husky scripts/build.mjs > _fork/patches/006-ci-and-build.patch
+```
+
+**注意**：  
+你提到冲突文件里有 `src/node_parser.ts`，但你的“自定义源码清单”里没列它。请先确认：
+
+```bash
+git diff ca977f0..main -- src/node_parser.ts
+```
+
+如果确实有自定义改动，就单独导出 `007-node_parser.patch`；如果没有，说明 merge 冲突只是因为上游改了它，你不需要管。
+
+#### 第 3 步：建立干净基底
+
+```bash
+git fetch upstream
+git checkout -b sync/upstream-v2.7.0 upstream/main
+# 或者 upstream/v2.7.0 tag，但用 upstream/main 更接近你后续跟踪方式
+```
+
+此时这个分支只有上游 v2.7.0 代码，没有任何你的自定义。
+
+#### 第 4 步：逐补丁应用
+
+```bash
+# 顺序建议：先数据、后 providers、再 groups、再 rules、最后配置
+git apply --3way _fork/patches/001-ruleset-data.patch
+git apply --3way _fork/patches/002-rule-providers.patch
+git apply --3way _fork/patches/003-proxy-groups.patch
+git apply --3way _fork/patches/004-rules.patch
+git apply --3way _fork/patches/005-constants-types-main.patch
+git apply --3way _fork/patches/006-ci-and-build.patch
+```
+
+`--3way` 会在冲突时留下冲突标记，并保留三路信息，方便你判断。
+
+#### 第 5 步：解决冲突的原则
+
+冲突主要会出现在 `proxy_groups.ts`、`rules.ts`、`constants.ts`、`main.ts` 以及 `package.json` / `package-lock.json`。
+
+**解决时记住三句话：**
+
+1. **上游新增功能能收就收，尤其 Tailscale。**  
+   上游重写 `rules.ts` 为 `baseRules` 数组，这是合理演进。你的 `MustDirect/MustProxy/MustReject` 规则链应该**移植到新结构里**，而不是强行保留旧写法。
+
+2. **你的自定义逻辑要保留，但尽量“追加”而不是“改写”。**  
+   比如在 `rules.ts` 中，不要直接插入到上游 `baseRules` 中间，而是新增一个 `customRules` 数组，最后合并：
+   ```ts
+   export const rules = [...baseRules, ...customRules]
+   ```
+   这样以后上游改 `baseRules`，你几乎不受影响。
+
+3. **上游删除的东西，如果没被你用到，就跟着删；如果被你用到，就适配。**  
+   上游移除了 SSH 代理组、低倍率节点分组。你的 `AI/ADOBE/AUTODESK` 组如果引用了这些被删分组，就需要改成引用其他现有组，或者自行补回必要部分。
+
+#### 第 6 步：构建与验证
+
+```bash
+npm run artifacts
+```
+
+检查 `convert.min.js`、`yamls/` 是否生成成功，重点验证：
+
+- 你的 `MustDirect/MustProxy/MustReject` 规则还在；
+- `AI/ADOBE/AUTODESK` 组还在；
+- Tailscale 相关节点/分组/TUN 排除已包含；
+- 没有 TypeScript 编译错误。
+
+如果能本地用 Mihomo/Sub-Store 实际拉一次配置，更稳妥。
+
+#### 第 7 步：合并回 `main`
+
+验证通过后：
+
+```bash
+git checkout main
+git merge --no-ff sync/upstream-v2.7.0 -m "sync: upstream v2.7.0 + custom patches"
+```
+
+或者如果你希望保持线性，也可以直接让 `main` 快进到 `sync/upstream-v2.7.0`，但个人项目建议保留合并记录，方便回溯。
+
+#### 第 8 步：发布与记录
+
+- 打新 tag：`src-v2.7.0` 或 `src-v2.7.0-fork1`，避免与上游 tag 冲突。
+- 更新 `_fork/STATUS.md`、`_fork/CHANGELOG.md`，记录本次同步解决了哪些冲突。
+- 把上面生成的 `_fork/patches/*.patch` 提交进仓库。
+
+---
+
+## 3. `rule-provider` 用 `@main` 动态拉取 `.list` 的注意事项
+
+### 优点你已经清楚：改规则数据不用发版，快速生效。
+
+### 但风险主要有三点
+
+#### 1. 不可复现性（最大风险）
+
+`convert.min.js` 是版本化的，但里面的 rule-provider URL 指向 `@main`。这意味着：  
+**同一个版本的 `convert.min.js`，在不同时间拉到的规则数据可能不一样。**
+
+如果某天你改错了一个 `.list`，所有正在使用这个版本的客户端下一次拉取就会立刻中招，而且很难回滚——因为 `@main` 一直在动。
+
+#### 2. CDN 缓存
+
+jsDelivr 对 `@main` 有缓存，通常几分钟到几小时。  
+你以为改了 `.list` 立刻生效，但用户可能还是旧数据，导致排查困难。
+
+#### 3. 路径失效风险
+
+如果未来你重命名或移动 `ruleset/` 下的文件，`@main` 路径会 404。  
+而由于没有版本号，用户无法锁定一个“已知可用”的规则数据版本。
+
+### 建议：有条件版本化，保留灵活性的同时增加可复现性
+
+**折中方案：**
+
+- 源码 `src/rule_providers.ts` 中继续写 `@main`，方便开发期快速改动。
+- 在 GitHub Actions 发布流程里，**构建 `convert.min.js` 之前，把 `@main` 替换成当前发布对应的 commit SHA 或 tag**，例如：
+  ```
+  @main → @v2.7.0-fork1
+  ```
+  这样每次发布的产物都绑定了一组固定的 `.list` 内容，可复现、可回滚。
+- 同时保留 `@main` 供日常开发测试。
+
+如果你觉得发布时替换太麻烦，至少要做一件事：  
+**在 `_fork/STATUS.md` 或发布记录里，写明本次发布对应的 `ruleset` commit SHA。**  
+这样出问题时至少能知道当时用的是什么数据。
+
+---
+
+## 4. 长期维护的最佳实践
+
+### 核心原则：**少改上游源码，多通过独立文件/provider 扩展**
+
+你现在的自定义已经集中在 `rule_providers.ts`、`proxy_groups.ts`、`rules.ts`、`constants.ts`。  
+这些文件恰好是上游最容易改的文件。长期看，冲突会反复出现。
+
+**建议逐步重构为：**
+
+- `src/custom_providers.ts` —— 你的自定义 provider 全部放这里，`src/rule_providers.ts` 只保留上游原样 + 一行导入。
+- `src/custom_groups.ts` —— 你的 `AI/ADOBE/AUTODESK` 组。
+- `src/custom_rules.ts` —— 你的 `MustDirect/MustProxy/MustReject` 规则。
+- `src/main.ts` 里只在合适位置调用这些自定义模块。
+
+这样上游改 `proxy_groups.ts` / `rules.ts` 时，你只需要关心入口调用是否还兼容，冲突面大幅减小。
+
+### 其他长期建议
+
+1. **提高同步频率**  
+   不要等上游前进 11 个 commit 才同步。建议每月或每季度 fetch 一次，冲突越少越容易处理。
+
+2. **自动化检测上游更新**  
+   可以加一个 GitHub Actions 定时任务，每周 `git fetch upstream`，然后尝试 `git apply --check` 你的补丁。如果失败，自动创建 issue 提醒你。
+
+3. **补丁要随代码一起更新**  
+   每次你改了自定义源码，都要重新生成对应 patch。否则补丁会过期。  
+   可以写一个 `scripts/update-patches.sh`，一键从当前分支重新导出所有 patch。
+
+4. **版本策略**  
+   继续用 `src-vX.Y.Z` 区分你的 tag，不要覆盖上游 tag。同步后可以考虑用 `src-v2.7.0-fork1` 这种命名。
+
+5. **文档与决策记录**  
+   保持 `_fork/ADR/` 记录每次冲突解决的原则，未来再遇到类似冲突，可以直接查历史决策。
+
+---
+
+## 附：本次同步建议执行清单（简洁版）
+
+- [ ] 备份当前 `main`
+- [ ] 生成 `_fork/patches/*.patch`（按模块拆分）
+- [ ] 确认 `src/node_parser.ts` 是否有本地自定义
+- [ ] 从 `upstream/main` 创建 `sync/upstream-v2.7.0` 干净分支
+- [ ] 按顺序 `git apply --3way` 所有 patch
+- [ ] 解决冲突：保留自定义，吸收 Tailscale，上游删除项按需适配
+- [ ] 尽量把自定义 rules/groups 改为“追加数组”而非“改写上游数组”
+- [ ] `npm run artifacts` 构建通过
+- [ ] 本地/测试环境验证配置生成正确
+- [ ] 合并回 `main`，打 tag，发布
+- [ ] 更新 `_fork/STATUS.md` 和 `_fork/CHANGELOG.md`
+- [ ] 提交 `_fork/patches/` 目录
+
+如果你按这个流程走，本次同步不会比直接 merge 更累，但以后每次同步都会轻松很多。
+
+
+Qwen：
+# 版本同步方案评估报告
+
+---
+
+## 一、路线推荐：A + 渐进式 C（附一个你没列出的关键手法）
+
+### 结论先行
+
+| 时间维度 | 推荐做法 | 对应方案 |
+|---------|---------|---------|
+| **本次同步**（v2.5.5→v2.7.0） | 基于上游 v2.7.0 新建分支，分类重放自定义 | A 的实操版 |
+| **中期**（未来 2-3 次上游升级） | 固化 SOP + 逐步将自定义逻辑抽成独立文件 | A → C 过渡 |
+| **长期**（理想态） | src/ 核心文件零修改或极少修改，自定义全部通过"新增文件 + 配置驱动"实现 | C 终态 |
+
+### 为什么不推荐纯 B（补丁目录）？
+
+补丁文件（.diff/.patch）适合"改动少且集中"的场景。你的情况是：
+- 上游 **重写了** `src/rules.ts` 的写法（改成 baseRules 数组）
+- 上游 **大改了** `src/dns.ts`
+
+这意味着你的补丁在下一个上游版本大概率无法干净应用，每次都要人工修补丁——维护成本反而比直接在新基底上手动适配更高。补丁文件更适合"上游不怎么动这些文件"的情况。
+
+### 你没列出的关键手法：`git rebase --onto`
+
+```bash
+git rebase --onto upstream/v2.7.0 <fork-point-commit> main
+```
+
+它的效果是：把你从 fork-point 之后的 50 个 commit **逐个**重放到 v2.7.0 上。相比一次性 merge 的优势：
+- 冲突按 commit 粒度出现，每次只需处理一个小改动
+- 能清楚看到"哪个 commit 引入了冲突"
+- 纯新增文件的 commit 会自动干净通过
+
+**但有一个前提判断**：由于上游重写了 `src/rules.ts` 的数据结构，你在 rules.ts 上的 commit 几乎必然每个都冲突。这种情况下，rebase 会变成"连续解 10 次同一个文件的冲突"，体验很差。所以我的建议是**混合策略**（见下文第二节）。
+
+---
+
+## 二、本次 v2.5.5 → v2.7.0 的最优执行步骤
+
+### 核心原则：分类处理，不要一把梭
+
+你的 50 个 commit 按冲突风险分为三类：
+
+| 类别 | 内容 | 冲突风险 | 处理方式 |
+|------|------|---------|---------|
+| 🟢 纯新增 | `_fork/`、`ruleset/*.list`、`icons/`、`scripts/` | 零 | 直接 cherry-pick 或复制 |
+| 🟡 修改但上游未动 | `src/rule_providers.ts`、CI 配置、`package.json` 部分 | 低 | cherry-pick，小冲突手动解 |
+| 🔴 修改且上游也改了 | `src/rules.ts`、`src/proxy_groups.ts`、`src/main.ts`、`src/constants.ts`、`src/node_parser.ts` | 高 | **手动适配**，不要硬 cherry-pick |
+
+### 具体步骤
+
+```bash
+# ===== 第 0 步：准备工作 =====
+# 确保 upstream remote 已配置
+git remote add upstream https://github.com/powerfullz/override-rules.git
+git fetch upstream --tags
+
+# 备份当前 main（安全网）
+git branch backup/v2.5.16 main
+
+# ===== 第 1 步：基于上游 v2.7.0 创建新工作分支 =====
+git checkout -b sync/v2.7.0 upstream/v2.7.0
+
+# ===== 第 2 步：重放 🟢 纯新增文件 =====
+# 方式一：从旧 main 直接 checkout 这些文件/目录
+git checkout backup/v2.5.16 -- _fork/ ruleset/ icons/ scripts/
+git commit -m "sync: restore fork-only files (ruleset, icons, scripts, _fork)"
+
+# ===== 第 3 步：重放 🟡 低风险修改 =====
+# 找出只改了 rule_providers.ts / CI / package.json 的 commit
+git log backup/v2.5.16 --oneline -- src/rule_providers.ts .github/ package.json
+# 逐个 cherry-pick（大概率干净或只有小冲突）
+git cherry-pick <commit-hash-1> <commit-hash-2> ...
+
+# ===== 第 4 步：手动适配 🔴 高风险文件 =====
+# 这是核心工作量所在，不要 cherry-pick，而是：
+# 1. 阅读上游 v2.7.0 的新写法（尤其 rules.ts 的 baseRules 数组）
+# 2. 打开旧分支的对应文件，理解你的自定义意图
+# 3. 用上游新写法重新实现你的自定义逻辑
+
+# 示例：rules.ts
+# 上游新写法可能是：
+#   const baseRules: Rule[] = [ ... ]
+# 你的自定义是"在规则链头部插入 MustDirect/MustProxy/MustReject"
+# 那就在新写法里找到正确的插入点，用新语法重写
+
+# 建议逐文件处理，每完成一个文件就 commit：
+git add src/rules.ts && git commit -m "sync: adapt MustDirect/MustProxy/MustReject to baseRules format"
+git add src/proxy_groups.ts && git commit -m "sync: re-add AI/Adobe/Autodesk groups for v2.7.0"
+git add src/constants.ts && git commit -m "sync: add custom constants"
+git add src/main.ts && git commit -m "sync: version metadata injection"
+
+# ===== 第 5 步：处理 package.json / package-lock.json =====
+# 以上游版本为底，合入你的自定义依赖（如果有）
+# package-lock.json 直接 npm install 重新生成，不要手动合
+
+# ===== 第 6 步：验证 =====
+npm install
+npm run build        # 或你的构建命令
+npm run artifacts    # 全量构建验证
+# 检查产物 convert.min.js 是否包含你的自定义逻辑
+# 检查 yamls/ 输出是否正确
+
+# ===== 第 7 步：合并回 main =====
+git checkout main
+git merge sync/v2.7.0
+# 更新版本号
+git tag src-v2.7.0
+git push origin main --tags
+```
+
+### 冲突判断原则（"保留哪边"）
+
+| 冲突类型 | 判断规则 |
+|---------|---------|
+| 上游删除了某功能（如 SSH 组、低倍率分组） | **接受上游的删除**，除非你的自定义依赖它 |
+| 上游新增功能（如 Tailscale） | **接受上游新增**，不阻碍 |
+| 上游重构写法（如 rules.ts 改 baseRules） | **采用上游新写法**，在新写法里重新实现你的自定义 |
+| 你的自定义与上游新代码位置冲突 | 优先保证你的自定义逻辑正确，位置可以调整 |
+| `CHANGELOG.md` | 直接用上游的，或清空让你自己的 git-cliff 重新生成 |
+
+---
+
+## 三、`@main` 动态拉取 `.list` 的风险评估
+
+### 当前设计的优势（不要急着改）
+
+- 规则数据热更新，不需要走发版流程
+- 对个人项目来说，迭代速度极快
+- 上游也是这么设计的，保持了一致性
+
+### 实际风险矩阵
+
+| 风险 | 严重程度 | 发生概率 | 缓解措施 |
+|------|---------|---------|---------|
+| jsdelivr CDN 缓存延迟（通常 12h） | 中 | 高 | 用 `@main` 而非版本号是对的；紧急时可换 `raw.githubusercontent.com` |
+| 版本不可复现（无法回溯"3 天前的规则长什么样"） | 低 | 中 | git 本身就是版本控制，`git log -- ruleset/` 即可追溯 |
+| `.list` 与 `convert.min.js` 不兼容 | **高** | 低 | 这是唯一真正危险的场景 |
+
+### 唯一需要警惕的场景
+
+如果你在 `src/rule_providers.ts` 中新增了一个 provider 名称（如 `MustDirect`），而 `.list` 文件已经上传到 main 分支引用了这个名称——但 `convert.min.js` 还没发版（还是旧版，不认识 `MustDirect`），客户端就会报错。
+
+**建议**：在 `_fork/SOP` 中加一条规则：
+> 新增 rule-provider 时，必须先发版 convert.min.js，再上传对应的 .list 文件。
+
+### 是否需要为 .list 引入版本化？
+
+**短期不需要**。理由：
+- 你的 .list 是纯文本，git 已经提供了完整历史
+- 引入版本号会增加维护负担，且上游没有这个机制
+- 个人项目，回滚场景极少
+
+**如果未来需要**，最轻量的做法是：在 `.list` 文件头部加注释行 `# version: 2026-08-21`，仅作标记，不参与逻辑。
+
+---
+
+## 四、长期维护最佳实践
+
+### 核心原则：最小侵入，最大隔离
+
+```
+理想架构：
+┌─────────────────────────────────────────┐
+│  上游 src/（尽量不动）                    │
+│  ├── main.ts                            │
+│  ├── rules.ts                           │
+│  ├── proxy_groups.ts                    │
+│  └── ...                                │
+├─────────────────────────────────────────┤
+│  你的扩展层（全部是新增文件）              │
+│  ├── custom/                            │
+│  │   ├── rules.ts          ← 自定义规则  │
+│  │   ├── proxy_groups.ts   ← 自定义组   │
+│  │   ├── providers.ts      ← 自定义源   │
+│  │   └── index.ts          ← 统一导出   │
+│  ├── ruleset/*.list                     │
+│  └── icons/                             │
+└─────────────────────────────────────────┘
+```
+
+### 具体建议
+
+1. **短期（本次同步后立即做）**
+   - 在 `_fork/ADR/` 中记录本次同步的决策和踩坑点
+   - 更新 `_fork/SOP/sync-upstream.md`，把上面的步骤固化
+
+2. **中期（下次上游升级前）**
+   - 评估上游是否有"插件/扩展"机制（如 config 文件、hook 点）
+   - 如果没有，考虑将你的自定义逻辑抽到 `src/custom/` 目录，`src/main.ts` 只做一行 import
+   - 这样上游改 `rules.ts` / `proxy_groups.ts` 时，你的文件完全不受影响
+
+3. **长期习惯**
+   - 每次上游发版时，先 `git log upstream/main --oneline` 看改了什么
+   - 如果只改了你不碰的文件 → 直接 merge，零冲突
+   - 如果改了你碰的文件 → 走"新基底 + 手动适配"流程
+   - 保持 `_fork/STATUS.md` 记录"当前基于上游哪个版本"
+
+4. **一个额外建议：关注上游的 PR/Issue**
+   - 如果上游有"支持自定义规则注入"的讨论或 PR，积极参与
+   - 这是从根本上消除 fork 维护成本的方式
+
+---
+
+## 五、总结决策表
+
+| 问题 | 答案 |
+|------|------|
+| 推荐路线 | A（固化SOP）立即执行 + 渐进式 C（解耦重构）作为中期目标 |
+| 本次同步方法 | 基于 v2.7.0 新建分支，分类重放（纯新增直接复制，核心文件手动适配） |
+| 不要用 | 纯 merge（冲突太多）、纯 cherry-pick（rules.ts 重写导致连续冲突）、纯补丁文件（上游变动太大，补丁会失效） |
+| @main 拉取 | 保持现状，加一条 SOP 规则防止 provider 名称与 .list 不同步 |
+| 长期方向 | 自定义逻辑全部放独立文件/目录，src/ 核心文件对上游保持零修改或仅一行 import |
+
+---
+
+*本评估基于 2026-08-21 的项目状态。上游若再次大重构（如换构建工具、换规则格式），需重新评估。*
+
+
+MiniMax：
+哥们这稿子写得挺规整的，先给你点个赞 👍 ——尤其是把"我们的自定义"按 A/B/C/D 分了类，并且明确列出了"哪 7 个文件会冲突 / 哪些肯定不会冲突"，这是后面所有方案能落地的前提。
+
+我直接说我的结论，然后再展开。
+
+---
+
+## 一、总判断：A 是底座，B 不推荐单独做，C 的思路最对路
+
+先说排序：
+
+| 方案 | 我的态度 |
+|---|---|
+| **A. 固化 SOP** | ✅ 必做。是基础设施，不做后面任何方案都跑不转。 |
+| **B. custom-patches 补丁目录** | ⚠️ **不推荐作为长期方案**。本质上是在"重新发明 git 的 rebase/cherry-pick"，且补丁要随源码改、随上游改而持续维护，长期是双倍工作量。短期可以当工具用（导出 diff 看清冲突），但别沉淀成仓库资产。 |
+| **C. 长线解耦重构** | ✅ **方向最对**，但不必一步到位。这次先按"少改上游源码"的原则把这次同步做了，方案 C 的精神在过程中逐步落地。 |
+
+**核心思路：把方案 C 当成"日常纪律"而不是"一次性大重构"**。具体说就是——
+
+> **每个新需求在动笔前先问一句："这件事能不能不改任何已有文件，纯靠新增文件/新增 provider/新增组来实现？"** 能新增就新增，能后置就后置（构建期注入、运行时 import），实在要改上游文件就改得"小、准、原子"。
+
+这样你的 fork 在结构上永远接近 upstream，merge 冲突会从"7 个文件"降到"1-2 个文件"，长期下来维护成本是单调下降的。
+
+**为什么不推荐 B（patch 目录）？**
+- patch 文件本身就是 git diff 的产物，它的"基线"也是漂移的——你这次导出的 patch，等下次上游一改，可能要重导
+- patch 多了之后，谁也说不清"这块代码现在到底是 patch 状态还是合并后状态"
+- git 自己的 `rebase --onto` / `cherry-pick` / `range-diff` 就是为这件事设计的，原生工具更好用
+
+---
+
+## 二、本次 v2.5.5 → v2.7.0 同步：具体执行步骤
+
+**关键决策：用 "以 v2.7.0 为干净基底 + 定向 cherry-pick 我们的 50 个 commit"，而不是 "merge upstream/main"。**
+
+理由很简单：
+- 你上游只多了 11 个 commit，你这边多了 50 个。**把少的当基底、多的当增量，冲突点更可控**
+- cherry-pick 一个 commit 是一个清晰的语义单元，冲突的"取舍粒度"天然是 commit 级；merge 是工作树级，冲突是文件级
+- 每个 commit 都能单独验证（构建过、规则过）
+
+### 推荐流程
+
+```bash
+# ===== 0. 备份 + 准备 =====
+git checkout main
+git tag archive/pre-sync-2.5.16   # 永远留个回得去的锚
+git fetch upstream --tags
+git fetch origin --tags
+
+# ===== 1. 用 v2.7.0 干净基底开新分支 =====
+git checkout -b sync/v2.7.0 upstream/main
+
+# ===== 2. 一次性先把"零冲突 + 非 src 核心"的东西拿过来 =====
+# 这些上游完全没动，可以直接 checkout 整片
+git checkout archive/pre-sync-2.5.16 -- _fork/ icons/ ruleset/ scripts/ .husky/
+git checkout archive/pre-sync-2.5.16 -- release.yaml package.json package-lock.json
+
+# ⚠️ package.json 也要拿我们的（我们要对齐我们的依赖 + scripts.build.mjs 那条）
+# 拿过来后看 diff：上游 v2.7.0 是不是也改了 dependencies？
+#   - 如果只是 devDeps 多了 build 工具，合并不冲突就合并
+#   - 如果 scripts 字段有冲突，保我们的（我们的是发布关键路径）
+
+# ===== 3. 核心：把 src/ 的自定义一个个 cherry-pick 回来 =====
+# 思路：不要 50 个 commit 一起 cherry-pick，先用 range-diff 看哪些 commit 真正涉及冲突文件
+
+# 3.1 看哪些 commit 涉及冲突文件
+git log --oneline archive/pre-sync-2.5.16 -- src/main.ts src/proxy_groups.ts src/rules.ts src/constants.ts src/types.ts src/node_parser.ts
+
+# 3.2 把这些 commit 按主题分组（手动整理一下），然后分批 cherry-pick
+# 例如：
+git cherry-pick <commit-A>   # rule_providers.ts 的新增（上游 v2.7.0 应该也改过这个文件）
+git cherry-pick <commit-B>   # proxy_groups.ts 新增 AI/ADOBE/AUTODESK 组
+git cherry-pick <commit-C>   # rules.ts 新增强制规则链
+git cherry-pick <commit-D>   # constants.ts 新增常量
+git cherry-pick <commit-E>   # main.ts 版本注入
+git cherry-pick <commit-F>   # types.ts 类型扩展
+
+# 3.3 冲突时怎么取舍？决策表：
+
+| 上游在这文件改了吗 | 我们要做什么 |
+|---|---|
+| 没改 | 无脑 `git checkout --ours`，合上 |
+| 改了，但改的是"我们没碰的区域" | 通常能自动合并；不能就保留两边不同部分 |
+| 改了，而且改的就是"我们要扩展的位置" | 手动解，逐段看：保留上游新逻辑 + 保留我们的新增项 |
+
+# 一些会用到的小技巧：
+#   - `git checkout --ours <file>`   ：冲突时只保我们的（用于"上游没改"的情况）
+#   - `git checkout --theirs <file>` ：冲突时只保上游的（**慎用**，一般不用）
+#   - `git log --oneline -p --follow <file>`：看这个文件的历史，知道哪段是谁加的
+
+# ===== 4. 把我们独有但被 cherry-pick 漏掉的拿过来 =====
+# 我们的 50 个 commit 里肯定有些是 _fork/ 文档/图标/规则数据，这些没冲突，前面 #2 已经处理
+# 跑一遍 git status + git log，看看有没有遗漏
+
+# ===== 5. 验证 =====
+npm ci
+npm run artifacts
+# 把 dist 产物在本地 Mihomo/Sub-Store 跑一下
+# 重点验证：
+#   - AI/ADOBE/AUTODESK 代理组还在
+#   - MustDirect/MustProxy/MustReject 规则链顺序对
+#   - Tailscale 支持（上游 v2.7.0 新增的）也工作
+
+# ===== 6. 发布 =====
+git tag src-v2.7.0
+git push origin sync/v2.7.0
+# PR 走 review → merge 到 main → 触发 release.yaml
+```
+
+### 关于"合并冲突时保留哪边"
+
+**永远不要无脑 `--ours` 或 `--theirs`**。这次的 7 个冲突文件每个都要单独判断：
+
+- **CHANGELOG.md**：上游自动生成的，不要我们改的，让 git cliff 重新生成即可 → 直接用 theirs
+- **package.json / package-lock.json**：要看具体 diff，一般是 devDeps 字段冲突，手动合 → 保留两边的依赖项
+- **src/main.ts**：看你"版本元信息 x-override-rules"那个改动是几行的事，新版本如果 main.ts 整个结构没动，就手动把那几行原样插回去
+- **src/node_parser.ts**：你们这版没改吧？冲突大概率是上游的；只要你们的自定义没在这个文件里，就 theirs
+- **src/proxy_groups.ts / src/rules.ts**：这是大头，必须逐段看。建议用 `git log -p --follow` 把上游这 11 个 commit 怎么改这两个文件的先看一遍
+
+---
+
+## 三、关于 "rule-provider 用 @main 动态拉取 .list" 的设计
+
+这个设计**对你们这种"频繁微调规则"的场景是合理的**，但确实有几条要注意的：
+
+### 风险点
+
+1. **不可复现性**：今天拉到 MustDirect.list 是 A 状态、明天发了新 .list 变成 B 状态，**用户客户端没有版本锚点**。出问题回滚只能"改回 .list"而不能"指回上个版本"
+2. **CDN 缓存**：jsdelivr 对 `@main` 的缓存是分钟级但不是秒级，热修有时候"看上去没生效"
+3. **跨分支不一致**：你在 main 上改了 .list 但没发 src-v2.7.0，客户端规则走 main 已经是新版，convert.min.js 还是 v2.5.16——这种"规则版本 ≠ 引擎版本"的不一致是隐性 bug 源
+
+### 我的建议（**不要给 .list 加版本号**，但要做几件小事）
+
+| 措施 | 怎么做 |
+|---|---|
+| **生产配置用 @tag，@main 留给开发/热修** | README 里写清楚"生产请用 @v2.7.0 这种 tag，不要用 @main" |
+| **给 .list 同步加 release 钩子** | 在 release.yaml 里加一步：每次发 src-vX.Y.Z 时，把当前 main 上所有 ruleset/*.list 拷一份到 `dist` 分支的同路径，便于"快照回滚" |
+| **.list 重大变更跟 src 发版同步** | "加一个新分组规则"这种"结构性"改动应该跟 src 一起发版，单纯"加几条域名"可以走 @main 热修 |
+| **给 .list 加一个 `meta.list` 或 `_version.list`** | 在 ruleset/ 维护一个 `ruleset/_meta.list` 记录每份 .list 最近一次"实质性变更"的 commit sha，客户端或你自己排查问题时有据可查 |
+
+**一句话：@main 这个机制保留，但只用于"非破坏性微调"；结构性变更走 release + 快照。**
+
+---
+
+## 四、长期维护的最佳实践（个人 Fork 跟随上游）
+
+这是我觉得**最值得你沉淀进 _fork/ 的一份 ADR**，因为它是接下来几年你们每次同步都要用的纪律。
+
+### 1. 核心原则：少改上游源码
+
+每次想改一个已有文件前，自检三连：
+
+> 1. 这件事能不能**纯新增**完成？（新文件 / 新 provider / 新组）
+> 2. 如果非要改，能否**追加**而非**修改**？（在数组末尾 push / 在文件末尾追加 import）
+> 3. 改的话，能否**只改这一处、保持其他区域逐字一致**？（让 git blame 干净，让 diff 一目了然）
+
+### 2. commit 风格纪律
+
+你们的 50 个 commit，按主题拆过没有？我看描述像是按"功能点"拆的（rule_providers 改一次、proxy_groups 改一次…）。**继续保持**。每改一个文件一个独立 commit，每个 commit 标题写"我们加了什么"而不是"修了什么 bug"——这样 cherry-pick 时一眼能看清意图。
+
+### 3. 同步节奏
+
+- **上游每次发版后 1 周内同步**，不要拖。拖久了 diff 越大冲突越难
+- 用 **GitHub Action** 监听 upstream 的 release，**自动开一个 issue 提醒**（或发邮件），比 dependabot 简单
+- 每次同步前在 _fork/STATUS.md 写一行"上次同步：v2.7.0 (date, upstream commit)"
+
+### 4. 工具链建议
+
+| 工具 | 用途 |
+|---|---|
+| `git worktree` | 同步时开一个独立 worktree，不污染主工作区 |
+| `git range-diff` | 上游 v2.5.5..v2.7.0 跟我们 fork..HEAD 的对比，看我们的 commit 跟上游"对位"了没有 |
+| `git rebase --onto` | 如果某段时间你们没发版但上游发了，可以用 --onto 把你们的 commit "移植"到新基底 |
+| `git log -p --follow <file>` | 冲突时**最有用**的命令，看清这个文件在两边各自怎么演进的 |
+
+### 5. 方案 C 的"渐进式落地"
+
+不用专门抽时间做一次大重构。而是**每次新需求都问一次"能不能不碰已有文件"**：
+
+- 想加新代理组？→ 在 src/proxy_groups.ts **末尾** push，不修改已有项
+- 想加新规则？→ 在 src/rules.ts 末尾追加，不重排已有顺序
+- 想加版本注入？→ **真的可以挪到构建期**：让 build.mjs 注入版本号到生成的 convert.js 里，**main.ts 不动**。这次同步就是顺路重构的好机会
+- 想加新常量？→ 在 src/constants.ts 末尾追加，不动已有常量值
+
+**一年下来，你的主干文件会和 upstream 主干文件"形状"高度一致，merge 永远是小冲突。**
+
+---
+
+## 五、给你的 _fork/ 文档建议
+
+你们已经有 ADR 决策记录了，把这次的判断沉淀进去：
+
+```
+_fork/ADR-0003-version-sync-strategy.md
+_fork/SOP-sync-upstream.md       ← 上面那段执行步骤的精简版
+_fork/STATUS.md                  ← 加一行 "2026-08-21: 准备 v2.5.16 → v2.7.0 同步"
+```
+
+特别是 SOP 里要明确写：
+- "以 upstream 干净基底开分支，不直接 merge"
+- "冲突决策表（哪个文件保 ours / theirs / 手动合）"
+- "同步完成必须验证的清单：构建 + 三个新代理组 + Tailscale + 强制规则链"
+
+---
+
+## 总结一句话
+
+> **方案 A 现在就做（写 SOP），方案 C 当作日常纪律（少改上游源码），方案 B 别做。这次 v2.7.0 同步用 "upstream/main 当底 + cherry-pick 我们的 commit" 路径。**
+
+这次同步的工作量主要在 src/proxy_groups.ts 和 src/rules.ts 这两个文件——上游 v2.7.0 重写了 rules.ts（改成 baseRules 数组），这意味着你的"新增强制规则链"逻辑可能要从"改文件中间"挪到"在 baseRules 数组末尾追加"，结构上跟方案 C 的精神一致，正好顺势做。
+
+需要我帮你起一份 SOP 文档的初稿，或者写那个同步脚本（自动化 cherry-pick + 冲突报告）吗？另外你 `package.json` 那个 `scripts/build.mjs` 是不是也可以把 main.ts 的版本注入挪过去、改成构建期注入？这样 main.ts 在下次同步时就能直接 `--ours` 干净通过。
+
+
+grok：
+下面是对你这份「版本同步方案咨询稿」的评估与建议。结论会尽量落到可执行步骤，并兼顾「稳妥 / 省力 / 可长期维护」三个目标。
+
+---
+
+## 一、总体判断：推荐路线
+
+**推荐：以 A 为骨架 + 轻量 B + 渐进式朝 C 靠拢（不要一次做完 C）。**
+
+| 路线 | 评价 | 适用场景 |
+|------|------|----------|
+| **A 固化 SOP** | **必须先做**。没有可重复的手册，后面 B/C 都会反复踩坑。 | 立刻可用，成本最低 |
+| **B 补丁目录** | **有价值，但别做成「唯一真相」**。适合把「相对上游的差异」固化成可审计清单；长期维护成本高于纯 SOP。 | 差异点稳定、想可视化冲突 |
+| **C 解耦重构** | **方向正确，但本次同步不要硬做**。自定义已经嵌进 `proxy_groups` / `rules` / `constants` / `main`，一次大拆风险高、回滚成本大。 | 下次或同步稳定后逐步做 |
+
+**不推荐作为主方案的：**
+
+- **纯 `git merge upstream/main` + 人工解 7 个冲突**：可行，但可审计性差，下次上游再改同一批文件还会再痛一次。
+- **整仓 submodule / subtree 挂上游**：对这种「源码被深度改写」的 fork 几乎帮不上忙，反而多一层复杂度。
+- **`merge -X ours/theirs` 一刀切**：会丢掉 Tailscale 或丢掉你的 AI/Adobe/Autodesk 逻辑，不符合「保住全部自定义 + 吸收有价值上游改动」的目标。
+
+**为什么不是「只做 C」？**  
+上游官方 `HOW_TO_CUSTOMISE.md` 本身就鼓励在 `src/rule_providers.ts`、`src/proxy_groups.ts`、`src/rules.ts`、`src/constants.ts` 里直接改。你的自定义（Must* 强制链、AI 组、Adobe/Autodesk）正是这类扩展，和上游设计一致。彻底解耦（独立模块 / 配置驱动）是「更好架构」，但不是「这次同步的最低风险路径」。长期可以朝「少改上游已有结构、多新增独立文件」演进，但本次应先安全追上 v2.7.0。
+
+---
+
+## 二、这次 v2.5.5 → v2.7.0 的最优执行步骤
+
+核心原则：**以干净的上游 v2.7.0 为底，把「你的自定义」当成可复现的补丁重放上去**，而不是在「你的 main + 上游 main」的混合历史上硬 merge。
+
+### 阶段 0：冻结与备份（必做）
+
+1. 确认本地 `main` 干净、已推送到 origin。  
+2. 打一个备份分支/tag，例如：  
+   `git branch backup/pre-sync-v2.5.16`  
+   `git tag backup-v2.5.16`  
+3. `git fetch upstream`，确认 `upstream/main` 指向 v2.7.0（`e88deb8` 一带）。
+
+### 阶段 1：导出「自定义清单」（强烈建议先做）
+
+在**当前 main（v2.5.16）**上，相对基线算出差异，而不是相对最新上游：
+
+```bash
+# 基线：上游 v2.5.5
+git fetch upstream
+BASE=$(git rev-parse ca977f0)   # 或 upstream 的 v2.5.5 tag 对应 commit
+
+# 只看源码与配置相关（排除 _fork、icons、ruleset 等纯新增可后处理）
+git diff $BASE...HEAD -- src/ package.json package-lock.json \
+  .github/workflows/release.yaml scripts/ > /tmp/custom-vs-base.diff
+```
+
+同时用文字清单（建议放进 `_fork/CUSTOM_DELTA.md`）按文件归类，例如：
+
+| 文件 | 自定义点 | 与上游 v2.7 可能冲突点 |
+|------|----------|------------------------|
+| `src/rule_providers.ts` | MustDirect/MustProxy/MustReject/MyDirectCDN/Adobe/Autodesk | 通常无冲突（你已验证） |
+| `src/proxy_groups.ts` | AI服务 / AI故障转移 / ADOBE / AUTODESK | 上游删 SSH、加 Tailscale、可能改分组结构 |
+| `src/rules.ts` | Must* 强制链、Adobe/Autodesk 优先级、MyDirectCDN | 上游改成 `baseRules` 数组写法 |
+| `src/constants.ts` | AI_FALLBACK / ADOBE / AUTODESK 等 | 上游可能增删组名 |
+| `src/main.ts` | `x-override-rules` 元信息 | 可能有结构变动 |
+| `src/node_parser.ts` | （若有自定义） | 上游 Tailscale 相关解析 |
+| `src/dns.ts` | （若未改可整收上游） | 上游大改 fake-ip-filter |
+
+**纯新增**（`_fork/`、`ruleset/Must*.list`、`icons/`、`scripts/sync-autodesk-list.sh`）在后续步骤里直接拷贝即可，几乎不产生冲突。
+
+### 阶段 2：以 v2.7.0 为底建同步分支
+
+```bash
+git checkout -b sync/upstream-v2.7.0 upstream/main   # 或 v2.7.0 tag
+```
+
+此时工作树 = 干净上游。再把纯新增文件拷进来（不依赖 cherry-pick）：
+
+```bash
+git checkout main -- _fork/ ruleset/MustDirect.list ruleset/MustProxy.list \
+  ruleset/MustReject.list ruleset/MyDirectCDN.list ruleset/Autodesk.list \
+  icons/Adobe.png icons/Autodesk.png scripts/sync-autodesk-list.sh
+# 以及你改过的 CI/脚本（若与上游不冲突）
+git checkout main -- .github/workflows/release.yaml scripts/build.mjs .husky/ 2>/dev/null || true
+```
+
+### 阶段 3：重放「逻辑自定义」（推荐：按文件语义手工/半自动，而不是整段 50 个 commit cherry-pick）
+
+你的 50 个 commit 是时间线历史，不一定适合逐个 cherry-pick（中间可能有试验、回滚、重命名）。更稳妥的是：
+
+1. **对每个冲突高发文件**，用三路对比：  
+   - 基线（v2.5.5）  
+   - 你的最终版（main）  
+   - 上游最终版（v2.7.0）  
+2. 在 v2.7.0 文件上**重新实现**你的语义，而不是机械选「ours/theirs」。
+
+建议顺序（依赖从少到多）：
+
+1. `src/constants.ts` — 先加组名常量，后面才有得引用。  
+2. `src/types.ts` — 类型扩展。  
+3. `src/rule_providers.ts` — 通常可整段合入你的 provider 定义。  
+4. `src/proxy_groups.ts` — **关键冲突点**：  
+   - 保留上游：Tailscale 相关分组、删除 SSH、删除「低倍率」等。  
+   - 保留你的：AI服务 / AI故障转移 / ADOBE / AUTODESK，以及 AI 组对国家分组的引用。  
+   - 做法：以上游当前 `buildProxyGroups` 结构为骨架，把你的组按语义插回合适位置。  
+5. `src/rules.ts` — **关键冲突点**：  
+   - 上游已是 `baseRules` 数组写法，你应以**上游数组为底**，把 MustDirect/MustProxy/MustReject、Adobe/Autodesk、MyDirectCDN 等按**优先级顺序**插进去（强制链通常靠前）。  
+6. `src/main.ts` — 只保留 `x-override-rules` 注入等差异，其余跟上游。  
+7. `src/node_parser.ts` / `src/dns.ts` — 若你几乎没改，直接用上游；若有改，用同样三路对比。  
+8. `package.json` / `package-lock.json` — 版本号、脚本钩子以你的发布流程为准，依赖版本尽量跟上游对齐后 `npm install` 重生 lock。
+
+**冲突时如何判断保留哪边？**
+
+- **语义优先，不文件优先**：问「这条改动解决的是谁的问题？」  
+  - Tailscale 节点解析/分组/TUN 排除 → 上游  
+  - Must* 强制直连/代理/拒绝、Adobe/Autodesk 分流、AI 故障转移 → 你的  
+  - SSH 组、低倍率组被上游删除 → 接受上游（除非你明确还在用）  
+- **结构优先跟上游**：例如 `rules.ts` 已改成 `baseRules`，你就不要坚持旧写法再 merge，而是把旧语义搬进新结构。  
+- **不确定时**：先保留两边逻辑到注释里，本地 `npm run artifacts` 构建 + 用测试订阅验证，再删注释。
+
+### 阶段 4：验证与发布
+
+1. `npm install && npm run format && npm run lint:fix && npm run artifacts`  
+2. 用真实订阅跑一遍 JS 覆写，检查：  
+   - Must* 规则顺序与命中  
+   - AI / Adobe / Autodesk 组存在且策略正确  
+   - Tailscale 相关组与规则出现（若订阅里有相关节点）  
+   - DNS / TUN 行为符合预期  
+3. 更新 `_fork/STATUS`、`CHANGELOG`（你的记录体系），提交。  
+4. 按你现有 `src-vX.Y.Z` tag + Actions 流程发版（版本号建议：同步后可标 `v2.7.0-fork.1` 或继续你的 `v2.5.x` 递增策略，但建议在文档里写清「基于上游 v2.7.0」）。
+
+### 阶段 5：把过程固化进 A（SOP）
+
+把上述步骤写成 `_fork/SOP_UPSTREAM_SYNC.md`，固定模板包括：
+
+- 基线 commit / 目标上游 tag  
+- 自定义清单路径  
+- 文件处理顺序  
+- 验证清单  
+- 回滚分支名  
+
+这样下次从 v2.7.0 → v2.8.x 时，只是「重复同一套剧本」。
+
+---
+
+## 三、方案 B 要不要上、怎么上才不贵
+
+**轻量 B 有价值，重量级「补丁即真相」不推荐。**
+
+建议做法：
+
+1. 在 `_fork/patches/` 或 `custom-delta/` 下放**文档化的 diff 快照**（相对「某次成功同步后的上游基线」），用于审计，而不是每次 `git apply` 的唯一入口。  
+2. 可选：写一个小脚本 `scripts/show-custom-delta.sh`，对 `src/` 做 `git diff upstream/main...HEAD -- src/`，输出报告。  
+3. **不要**维护一长串与源码双轨同步的 `.patch` 文件——源码一改，patch 就失效，维护成本会高于直接三路合并。
+
+若未来自定义稳定、且上游改动频繁，再考虑把「可机械应用的片段」（例如整段 rule-provider 对象、整段 proxy group 定义）抽成独立文件，用脚本合并进上游结构——那就是向 C 过渡。
+
+---
+
+## 四、关于 rule-provider 用 `@main` 拉 `.list`
+
+这是你们设计里很聪明的一点：**规则数据与脚本发版解耦**。要注意的风险与对策如下。
+
+| 风险 | 说明 | 建议 |
+|------|------|------|
+| **不可复现** | 同一 `convert.min.js` 版本，客户端下次拉到的 `.list` 可能不同 | 对关键规则集（Must*）在发版说明里记录「规则集大致状态」；需要严格复现时临时改 URL 为 `@某 commit` 或 `@某 tag` |
+| **CDN 缓存** | jsDelivr 等对 `@main` 有缓存，改 list 后可能延迟生效 | 已知现象；紧急时可换 raw.githubusercontent.com 或带 commit 的 URL；或接受「最多延迟数小时」 |
+| **误改 main** | 错误 list 推到 main 会立刻影响所有用 `@main` 的客户端 | `_fork` SOP 要求改 list 走 PR/自检；重要 list 可考虑 `ruleset/` 与 CI 简单校验（空文件、明显坏行） |
+| **与脚本逻辑不匹配** | 脚本里引用了 provider 名，但 list 被删/改名 | 发版前 checklist：provider 名 ↔ 文件名一致 |
+
+**是否值得给 `.list` 也做版本化？**
+
+- **日常：保持 `@main` 动态**——符合「改规则不用发版」的目标，省力。  
+- **需要冻结时**（例如对外分享「某次稳定配置」、或排查「上周还能用这周不行」）：  
+  - 短期：客户端 URL 改成 `@commit` / `@tag`；  
+  - 中期：可选 `ruleset` 打 `rules-vYYYYMMDD` tag，文档说明「脚本版」与「规则版」可独立引用。  
+
+一般个人自用 fork **不必**强制规则集跟脚本同版本号；在 `_fork/STATUS` 里记一句「当前规则集以 main 为准」即可。
+
+---
+
+## 五、长期维护的最佳实践（个人 Fork）
+
+结合上游官方自定义指南与你的现状，可持续策略可以概括为：
+
+### 1. 扩展优先于修改（朝 C 渐进）
+
+- **优先**：新增 `ruleset/*.list`、在 `rule_providers.ts` 增加 provider、在 `proxy_groups` / `rules` **追加**组与规则、在 `constants` **追加**常量。  
+- **谨慎**：改上游已有函数的控制流、重排整份 `baseRules`、改 node 解析主路径。  
+- **目标形态**：`src/` 里与上游的 diff 尽量是「插入块」，而不是「大段替换」。这样未来 `git merge` 或「以新版本为底重放」都会更轻松。
+
+### 2. 单一上游跟踪分支策略
+
+- `main`：你的对外稳定线（自定义 + 已同步的上游）。  
+- `upstream-tracking` 或仅用 `upstream/main` remote：只跟上游，不掺自定义。  
+- 每次同步：从 `upstream/main`（或 tag）拉出 `sync/vX.Y.Z`，重放自定义，验证后合回 `main`。  
+
+避免长期「main 上反复 merge upstream」导致历史难以阅读；merge 可以，但「重放语义」比「保留 merge 拓扑」更重要。
+
+### 3. 自定义必须可枚举
+
+`_fork/CUSTOM_DELTA.md`（或等价 ADR）维护一张表：文件 → 自定义意图 → 依赖的上游结构。同步时只对照这张表，而不是凭记忆解冲突。
+
+### 4. 发版与规则集分工保持现状
+
+- 源码/逻辑 → tag + dist + Release。  
+- 规则数据 → `@main` 动态。  
+- 文档在 README/`_fork` 里写清楚，避免使用者以为「升脚本版本才会更新 MustDirect」。
+
+### 5. 上游大改时的决策框架
+
+每次同步前花 15 分钟读上游 CHANGELOG / commit（本次重点：Tailscale、去 SSH、rules 重写、dns 重写）：
+
+- **吸收**：安全修复、新协议/新场景支持（如 Tailscale）、明显的结构改进。  
+- **可丢**：你不用的分组（SSH、低倍率）。  
+- **必须重做**：与你自定义同一文件的重构（如 `baseRules`）——接受「搬语义」而不是「保 diff」。
+
+### 6. 何时认真做 C
+
+满足任一条件再投入解耦重构更划算：
+
+- 上游连续 2～3 个大版本都在改你改过的同一批文件，且每次同步超过半天；  
+- 你希望把「AI / Adobe / 强制链」做成可开关的参数或独立包，方便多环境复用；  
+- 有第二人一起维护 fork。  
+
+在此之前，**A + 轻量清单 + 按语义重放**已经是个人 fork 里性价比最高的组合。
+
+---
+
+## 六、直接回答你的五个具体问题
+
+1. **最推荐路线**  
+   **A 必须 + 轻量差异清单（弱 B）+ 长期朝「少改结构、多追加」演进（弱 C）**。本次不要上完整 C，也不要只靠裸 merge。
+
+2. **本次 v2.5.5 → v2.7.0 最优步骤**  
+   备份 → 导出相对基线的自定义清单 → 从 `upstream/main`（v2.7.0）建分支 → 拷贝纯新增 → 按 constants → providers → groups → rules → main 顺序在上游结构上重放语义 → 构建与订阅验证 → 写回 SOP → 发版。
+
+3. **先 diff 清单还是直接基于 v2.7.0 cherry-pick？**  
+   **先清单（diff + 文字表）**。不要对 50 个 commit 盲目 cherry-pick。冲突时按「语义归属」判断，结构跟上游、业务逻辑跟你的。
+
+4. **`@main` 拉 `.list`**  
+   保持；注意 CDN 延迟与误推风险；需要复现时用 commit/tag 钉死。一般不必给 list 强制版本化，文档说明即可。
+
+5. **长期最佳实践**  
+   少改上游已有控制流、多通过新增 provider/规则/组扩展；自定义可枚举；同步用「上游干净底 + 语义重放」；规则数据与脚本发版解耦维持现状。
+
+---
+
+## 七、补充：与当前公开仓库状态的对齐
+
+截至本次查询，上游 `powerfullz/override-rules` 最新正式版确为 **v2.7.0**（约 2026-08-20），包含 Tailscale 相关提交、移除 SSH 代理组、DNS/`fake-ip-filter` 修正等，与你文档中的描述一致；基线 `ca977f0`（v2.5.5）也可对应。你的 Fork 上已有 `_fork/`、`ruleset/`、`icons/` 等结构，和「纯新增可整份保留」的判断一致。
+
+若你愿意，下一步可以在同步分支上按「文件级」写出更细的合并检查表（例如 `proxy_groups.ts` 里 AI 组应插在哪一类组之后、Must* 规则在 `baseRules` 中的推荐顺序）。需要的话我可以按上游 v2.7.0 的公开源码结构帮你草拟一版检查表模板，方便你直接贴进 `_fork/`。
+
+
+Kimi：
+我先查看一下上游仓库和您 fork 的实际 commit 历史，以便给出更精准、基于事实的建议
+我已经仔细查看了上游仓库的 commit 历史、release 信息以及关键改动的 diff。基于这些事实，下面给出逐条评估和可落地的执行方案。
+
+---
+
+## 一、路线评估：推荐 **B + A 组合**，以 C 为终极目标
+
+| 维度 | 评估 |
+|------|------|
+| **方案 A（SOP）** | 必须做，但单独不够。没有工具辅助的"手册"在多次同步后会因人为疏忽而失效。 |
+| **方案 B（补丁目录）** | **当前最优**。把"我们的自定义"与"上游演进"物理分离，每次升级都能**逐 patch 验证、逐文件审计**。 |
+| **方案 C（长线解耦）** | 方向正确，但**现在做代价过高**。您的自定义深度嵌入在 `proxy_groups.ts`、`rules.ts`、`main.ts` 中，一次性重构风险大、工作量大，且需要改动上游架构（或自己 fork 后大改）。 |
+| **Submodule/Subtree** | **不适合**。这两种方案适用于"把外部库作为独立组件引用"，而您需要**修改上游源码**并与之融合，submodule/subtree 会让这种修改更加痛苦。 |
+| **git merge -X ours/theirs** | **不可取**。`-X ours` 会丢失 Tailscale 等新功能；`-X theirs` 会丢失全部自定义。 |
+
+### 推荐路线：**B（补丁目录）+ A（SOP 手册）**
+
+把自定义整理成独立 patch 文件，同时写一份可复用的同步手册。这既是这次同步的执行路径，也是未来每次同步的标准流程。方案 C 的解耦重构可以**渐进式**地在后续迭代中完成，而不是一次性大改。
+
+---
+
+## 二、本次 v2.5.5 → v2.7.0 同步的最优执行步骤
+
+基于我对上游 11 个 commit 的逐条分析，这次同步的核心冲突**不是逻辑冲突，而是结构性冲突**：
+
+- `src/rules.ts`：上游从 `baseRules` 数组改为函数内直接 `return [...].filter(isNotNull)`，并新增 Tailscale 条件规则
+- `src/proxy_groups.ts`：上游新增 `allNodes` 参数、新增 TAILSCALE 组、移除 SSH 组、调整 MANUAL 组写法
+- `src/main.ts`：上游新增 `allNodes` 和 Tailscale 相关参数传递
+- `src/dns.ts`：上游大改 fake-ip-filter（大量新增域名）+ 移除 default-nameserver
+- `package.json/package-lock.json`：常规依赖更新
+
+### 推荐策略：**"干净基底 + 结构化重放"**，而非直接 merge
+
+直接 `git merge upstream/main` 会让您在 7 个文件的冲突中做"二选一"的微观决策，极易出错。更好的方式是：**先完全接受上游 v2.7.0，再系统性地把自定义重放回去**。
+
+#### 步骤 1：预演与清单梳理
+
+```bash
+# 1. 确保 upstream remote 已配置
+git remote add upstream https://github.com/powerfullz/override-rules.git 2>/dev/null || true
+git fetch upstream
+
+# 2. 生成"我们的自定义 vs 上游基线"的完整 diff（用于审计）
+git diff ca977f0..HEAD > _fork/sync/v2.5.5-to-v2.5.16-full.diff
+
+# 3. 生成"上游演进"的 diff（用于理解上游改了什么）
+git diff ca977f0..upstream/main > _fork/sync/upstream-v2.5.5-to-v2.7.0.diff
+```
+
+#### 步骤 2：创建干净的 v2.7.0 工作分支
+
+```bash
+# 从上游 v2.7.0 切出干净分支
+git checkout -b sync-v2.7.0 upstream/e88deb8
+
+# 此时这个分支 = 纯上游 v2.7.0，没有任何我们的自定义
+```
+
+#### 步骤 3：分类重放自定义
+
+把您的自定义分成 **4 类**，分别处理：
+
+| 类别 | 内容 | 处理方式 | 冲突风险 |
+|------|------|----------|----------|
+| **A. 纯新增文件** | `ruleset/*.list`, `_fork/`, `icons/`, `scripts/sync-autodesk-list.sh` | 直接从 main 分支 `git checkout main -- <paths>` 复制过来 | **零冲突** |
+| **B. 新增源码模块** | `src/rule_providers.ts`（您新增 MustDirect 等 provider） | 直接复制。上游 v2.7.0 没动这个文件 | **零冲突** |
+| **C. 与上游冲突的源码** | `src/proxy_groups.ts`, `src/rules.ts`, `src/constants.ts`, `src/types.ts`, `src/main.ts` | **结构化重放**：先接受上游 v2.7.0 完整版本，再手动添加我们的自定义 | **需要人工处理，但可控** |
+| **D. 配置文件** | `release.yaml`, `.husky/`, `scripts/build.mjs`, `package.json` | 逐项合并：保留上游的依赖更新，保留我们的自定义 scripts 和版本号 | **低风险** |
+
+#### 步骤 4：C 类文件的具体重放方法（核心）
+
+**不要**用 `git merge` 或 `git cherry-pick` 来处理这些文件。而是：
+
+1. **打开两个编辑器窗口**：左边是上游 v2.7.0 版本，右边是您当前 main 分支版本
+2. **逐文件执行"接受上游 + 追加自定义"**：
+
+**`src/proxy_groups.ts` 示例：**
+- 先完全接受上游 v2.7.0 版本（包含 Tailscale 组、allNodes、移除 SSH 等）
+- 然后在上游代码的**合适位置**插入我们的自定义：
+  - 在 `AI_SERVICE` 组附近添加我们的 `AI_FALLBACK` 组
+  - 在适当位置添加 `ADOBE`、`AUTODESK` 组
+  - 注意：上游 MANUAL 组现在用 `proxies: allNodes` 而不是 `include-all: true`，我们的自定义要适配这个新结构
+
+**`src/rules.ts` 示例：**
+- 上游已改为 `return [ ... ].filter(isNotNull)` 的写法
+- 我们的 MustDirect/MustProxy/MustReject/Adobe/Autodesk/MyDirectCDN 规则要**插入到上游规则数组的合适位置**
+- 注意优先级顺序：MustDirect 要在 GEOIP,cn 之前，MustProxy 要在 MATCH 之前等
+
+**`src/main.ts` 示例：**
+- 上游新增了 `allNodes` 和 Tailscale 相关逻辑
+- 保留上游的这些新功能，只追加我们的 `x-override-rules` 版本元信息注入
+
+**`src/constants.ts` 示例：**
+- 上游新增了 `TAILSCALE` 等常量
+- 保留上游常量，追加我们的 `AI_FALLBACK`、`ADOBE`、`AUTODESK` 等
+
+**`src/types.ts` 示例：**
+- 上游新增了 `allNodes` 等类型
+- 保留上游类型，追加我们的类型扩展
+
+#### 步骤 5：验证与发布
+
+```bash
+# 1. 构建验证
+npm install
+npm run artifacts
+
+# 2. 检查生成的 convert.min.js 和 yamls/ 是否正常
+# 3. 运行测试（如果有）
+# 4. 提交并打 tag
+git add .
+git commit -m "sync: merge upstream v2.7.0 + replay custom patches
+
+Upstream changes absorbed:
+- Tailscale support (node parser, proxy group, rules)
+- Manual group now uses explicit allNodes list
+- fake-ip-filter expanded
+- SSH proxy group removed
+- default-nameserver cleaned up
+
+Custom features preserved:
+- MustDirect/MustProxy/MustReject/MyDirectCDN rulesets
+- Adobe/Autodesk proxy groups and rules
+- AI_SERVICE/AI_FALLBACK groups
+- x-override-rules version injection
+- _fork/ documentation体系"
+
+# 5. 合并到 main
+git checkout main
+git merge sync-v2.7.0 --no-ff
+git tag src-v2.7.0
+git push origin main --tags
+```
+
+#### 步骤 6：建立补丁目录（方案 B 落地）
+
+在同步完成后，立即做这件事：
+
+```bash
+mkdir -p _fork/patches
+
+# 把本次的自定义 diff 按逻辑拆分为独立 patch
+git diff upstream/e88deb8..HEAD -- src/rule_providers.ts > _fork/patches/01-add-custom-rule-providers.patch
+git diff upstream/e88deb8..HEAD -- src/proxy_groups.ts > _fork/patches/02-add-custom-proxy-groups.patch
+git diff upstream/e88deb8..HEAD -- src/rules.ts > _fork/patches/03-add-custom-rules.patch
+git diff upstream/e88deb8..HEAD -- src/constants.ts > _fork/patches/04-add-custom-constants.patch
+git diff upstream/e88deb8..HEAD -- src/types.ts > _fork/patches/05-add-custom-types.patch
+git diff upstream/e88deb8..HEAD -- src/main.ts > _fork/patches/06-add-version-injection.patch
+git diff upstream/e88deb8..HEAD -- release.yaml > _fork/patches/07-custom-release-workflow.patch
+```
+
+这些 patch 文件**进 git**，成为仓库的一部分。下次同步时：
+
+```bash
+# 基于新的上游版本创建分支
+git checkout -b sync-v2.8.0 upstream/main
+
+# 尝试自动应用所有 patch
+for p in _fork/patches/*.patch; do
+    git apply --check "$p" 2>/dev/null && git apply "$p" && echo "✅ $p" || echo "❌ $p (needs manual review)"
+done
+```
+
+能自动应用的 patch 说明上游没动相关文件；报错的 patch 就是需要人工处理的冲突点，**一目了然**。
+
+---
+
+## 三、@main 动态拉取 .list 的风险评估
+
+您的直觉是对的，这个设计**确实引入了风险**：
+
+| 风险 | 说明 | 严重程度 |
+|------|------|----------|
+| **版本不可复现** | 用户用 `src-v2.7.0` 的 `convert.min.js`，但 `ruleset/*.list` 是 @main 实时拉取的。今天和明天的规则集可能不同，导致"同样的 release，行为不一致" | 🔴 **高** |
+| **CDN 缓存延迟** | jsdelivr 对 `@main` 有缓存（通常 5-60 分钟），改了 `.list` 后不会立即全局生效 | 🟡 **中** |
+| **回滚困难** | 如果 `.list` 的改动导致问题，无法通过回滚 `src-*` tag 来回滚规则数据 | 🔴 **高** |
+| **意外破坏** | 直接推 main 改 `.list` 没有 review 流程，容易误操作 | 🟡 **中** |
+
+### 建议
+
+**短期（保持现状）**：在 `_fork/ADR/` 中增加一条决策记录，明确接受这些风险，并约定：
+- `.list` 的改动必须是**追加性**的（只增不减），避免破坏性变更
+- 重大规则调整时，通过 `src-*` tag 发版，在 `convert.min.js` 中引用带版本的 rule-provider URL
+
+**中期（推荐改进）**：为 `.list` 引入轻量版本化。两种做法：
+
+**做法 A（推荐）：在 dist 分支中同步发布 .list**
+```yaml
+# release.yaml 中增加一步：
+- name: Sync ruleset to dist branch
+  run: |
+    git checkout dist
+    cp -r ruleset/ dist/ruleset/
+    git add dist/ruleset/
+    git commit -m "sync ruleset for $(git describe --tags)"
+    git push origin dist
+```
+然后 rule-provider URL 改为：
+```
+https://cdn.jsdelivr.net/gh/LeiD215/override-rules@src-v2.7.0/ruleset/MustDirect.list
+```
+这样 `.list` 也随 `src-*` tag 版本化了。
+
+**做法 B（更轻量）**：不改发布流程，但在 `src/main.ts` 中把 rule-provider 的 URL 模板改为可配置：
+```typescript
+const RULESET_BASE_URL = config["x-ruleset-branch"] 
+  ? `https://cdn.jsdelivr.net/gh/LeiD215/override-rules@${config["x-ruleset-branch"]}`
+  : `https://cdn.jsdelivr.net/gh/LeiD215/override-rules@main`;
+```
+让用户可以选择用 `@main`（实时）或具体 tag（稳定）。
+
+---
+
+## 四、长期维护的最佳实践
+
+您的最后一个问题其实已经触及了核心：**个人 Fork 跟随上游最可持续的模式是什么？**
+
+答案是：**"少改上游源码，多通过扩展点注入"**。
+
+### 当前问题诊断
+
+您现在的自定义模式是**"侵入式修改"**：
+- `proxy_groups.ts`：直接在上游的代理组数组中插入新组
+- `rules.ts`：直接在上游的规则数组中插入新规则
+- `constants.ts`：直接在上游的常量对象中新增键
+
+这意味着上游每改一次这些文件的结构，您就要人工同步一次。
+
+### 向方案 C 渐进演进的路线图
+
+**阶段 1（本次同步后立即做）**：
+- 把 `src/rule_providers.ts` 的自定义逻辑整理成**纯数据驱动**：用一个 `CUSTOM_RULE_PROVIDERS` 数组定义所有自定义 provider，然后循环注册
+- 这样下次上游改 `rule_providers.ts` 的结构时，您只需要改循环逻辑，不需要逐个改 provider 定义
+
+**阶段 2（下次同步前）**：
+- 在 `src/proxy_groups.ts` 中引入**"扩展点"**：上游的 `buildProxyGroups` 返回的数组末尾加一个 `...customProxyGroups` 展开
+- 自定义代理组全部放到 `src/custom/proxy_groups.ts` 中
+- 这样 `src/proxy_groups.ts` 本身可以尽量贴近上游
+
+**阶段 3（未来）**：
+- 推动上游（或自己 fork 后重构）把 `buildRules`、`buildProxyGroups` 改为接受**"扩展配置"**参数
+- 最终目标是：自定义完全通过 JSON/YAML 配置文件驱动，不需要改任何 `.ts` 文件
+
+### 每次同步的标准流程（SOP）
+
+把以下内容写入 `_fork/SOP-SYNC.md`：
+
+```markdown
+# 上游同步 SOP
+
+## 前置条件
+- upstream remote 已配置且可 fetch
+- 本地工作区干净
+
+## 步骤
+1. `git fetch upstream`
+2. 查看上游 release notes，记录需要吸收的功能
+3. 创建同步分支：`git checkout -b sync-vX.Y.Z upstream/<tag>`
+4. 应用零冲突 patch：`git checkout main -- ruleset/ _fork/ icons/ scripts/sync-autodesk-list.sh`
+5. 尝试自动应用 custom patches：`./scripts/apply-patches.sh`
+6. 对报错的 patch，采用"接受上游 + 重放自定义"策略手动处理
+7. 构建验证：`npm run artifacts`
+8. 提交、合并、打 tag、推送
+9. 更新 _fork/CHANGELOG.md 和 _fork/STATUS.md
+```
+
+---
+
+## 总结
+
+| 问题 | 结论 |
+|------|------|
+| **推荐路线** | **B + A 组合**：建立 `custom-patches` 目录 + 同步 SOP，作为向 C 过渡的桥梁 |
+| **本次同步** | 用"干净基底 + 结构化重放"代替直接 merge。先 `checkout -b sync-v2.7.0 upstream/e88deb8`，再分类重放自定义 |
+| **冲突处理原则** | **先完全接受上游 v2.7.0，再手动插入自定义**。不要试图在 merge conflict 标记中做微观取舍 |
+| **@main 风险** | 风险真实存在。建议在 `_fork/ADR` 中记录风险接受声明，中期改为在 dist 分支中按 tag 发布 `.list` |
+| **长期方向** | 逐步把自定义从"侵入式修改"转为"扩展式注入"，减少直接改动上游源码的文件数量和深度 |
+
+如果您需要，我可以帮您生成具体的 patch 拆分脚本，或者为您起草 `_fork/SOP-SYNC.md` 和 `_fork/ADR/ruleset-versioning.md` 的模板内容。
+
