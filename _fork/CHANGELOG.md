@@ -6,6 +6,27 @@
 
 ## [Unreleased]
 
+### 2026-08-21 运维：GitHub 凭据文件迁移到标准位置 + 首次 push 上线
+
+- 开始：2026-08-21 （本地时间）
+- 结束：2026-08-21
+- 类型：运维 / 凭据管理 / 首次代码上线
+- 对象：GitHub 凭据文件、`git config credential.helper`、项目根 `push.sh`（新增）
+- 原因：
+  - 需将本仓库 commit 推送上线 GitHub，环境内无 credential helper / SSH key / gh，故采用 git credential store + 用户手工写入 token 的方式
+  - 凭据文件最初放 `/opt/data/.git-credentials`，后按用户确认迁移到标准位置 `/opt/data/home/.git-credentials`（`$HOME`）
+- 修改：
+  - 新增 `/opt/data/home/.git-credentials`（权限 600，`https://x-access-token:<PAT>@github.com` 单行格式，由用户手工填入 token，未经过对话）
+  - `git config --global credential.helper store`（读 `$HOME/.git-credentials`）
+  - 新增项目根 `push.sh`（可复用 push 脚本；输出对 token 打码；凭据长期保存不删）
+- 验证：
+  - `git push origin main` 成功，`7d627cb..082d4f6 main -> main`
+  - `git ls-remote origin main` 确认远端含新提交；`origin/main == 本地 HEAD = 082d4f6`，零差异
+  - 迁移到新位置后再次 `bash push.sh` → `Everything up-to-date`，确认新位置凭据读取正常
+- 影响：commit `082d4f6`（MustDirect 新增 volces.com 强制直连）上线 GitHub main 分支；后续 push 用 `cd /opt/data/program/override-rules && bash push.sh` 即可，凭据长期保留
+- 撤回：否
+- author: ai
+
 ### 用户 Sub-Store 当前真实配置（2026-08-07 确认）
 
 **脚本 URL**：
