@@ -140,7 +140,17 @@ export interface ClashProfile {
     "store-fake-ip"?: boolean;
 }
 
+// 自定义 vendor-extension 命名空间，仿 OpenAPI / Docker compose 的 x- 前缀约定。
+// build 期由 scripts/build.mjs 注入：version + schema。
+// 客户端 yaml 渲染器不识别这个字段，原样写入 yaml → 不影响 clash 配置解析。
+export interface OverrideRulesMeta {
+    version: string;
+    schema: string;
+    generator: string;
+}
+
 export interface ClashConfig {
+    "x-override-rules"?: OverrideRulesMeta;
     proxies?: ProxyNode[];
     "proxy-groups"?: ProxyGroup[];
     rules?: string[];
@@ -191,7 +201,6 @@ export interface BaseLists {
 
 export interface BuildBaseListsInput {
     landing: boolean;
-    lowCostNodes: ProxyNode[];
     countryNames: string[];
     nonLandingNodes: ProxyNode[];
     regexFilter: boolean;

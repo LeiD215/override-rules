@@ -1,11 +1,4 @@
-import {
-    CDN_URL,
-    SPEEDTEST_URL,
-    LOW_COST_NODE_MATCHER,
-    NODE_SUFFIX,
-    PROXY_GROUPS,
-    countriesMeta,
-} from "./constants";
+import { CDN_URL, SPEEDTEST_URL, NODE_SUFFIX, PROXY_GROUPS, countriesMeta } from "./constants";
 import type { BuildProxyGroupsInput, GroupType, ProxyGroup } from "./types";
 import { isNotNull } from "./utils";
 
@@ -118,7 +111,39 @@ export function buildProxyGroups({
             name: PROXY_GROUPS.AI_SERVICE,
             icon: `${CDN_URL}/gh/Koolson/Qure@master/IconSet/Color/ChatGPT.png`,
             type: "select",
-            proxies: defaultProxies,
+            // 自定义：手动选择为主，不用自动测速——AI 服务对 IP 跳变敏感，频繁
+            // 换节点容易触发登录风控。美/日节点在前、AI故障转移次之、香港节点
+            // 兜底。
+            proxies: [
+                "美国节点",
+                "日本节点",
+                PROXY_GROUPS.AI_FALLBACK,
+                PROXY_GROUPS.MANUAL,
+                "香港节点",
+            ],
+        },
+        {
+            name: PROXY_GROUPS.AI_FALLBACK,
+            icon: `${CDN_URL}/gh/Koolson/Qure@master/IconSet/Color/ChatGPT.png`,
+            type: "fallback",
+            url: SPEEDTEST_URL,
+            // 自定义：AI 服务故障转移组。下游引用这个组，IP 切换仍受上游的风控
+            // 影响，但至少同一组内（美/日/香港）能自动切换，减少人工介入。
+            proxies: ["美国节点", "日本节点", "香港节点", PROXY_GROUPS.MANUAL],
+            interval: 60,
+            tolerance: 20,
+        },
+        {
+            name: PROXY_GROUPS.ADOBE,
+            icon: `${CDN_URL}/gh/LeiD215/override-rules@main/icons/Adobe.png`,
+            type: "select",
+            proxies: ["REJECT", PROXY_GROUPS.SELECT, "DIRECT"],
+        },
+        {
+            name: PROXY_GROUPS.AUTODESK,
+            icon: `${CDN_URL}/gh/LeiD215/override-rules@main/icons/Autodesk.png`,
+            type: "select",
+            proxies: ["REJECT", PROXY_GROUPS.SELECT, "DIRECT"],
         },
         {
             name: PROXY_GROUPS.CRYPTO,
@@ -283,16 +308,6 @@ export function buildProxyGroups({
             interval: 60,
             tolerance: 20,
         },
-        lowCostNodes.length > 0 || regexFilter
-            ? buildGroupByType({
-                  name: PROXY_GROUPS.LOW_COST,
-                  icon: `${CDN_URL}/gh/Koolson/Qure@master/IconSet/Color/Lab.png`,
-                  groupType,
-                  nodeSource: !regexFilter
-                      ? { proxies: lowCostNodes.map((node) => node.name).filter(isNotNull) }
-                      : { "include-all": true as const, filter: LOW_COST_NODE_MATCHER.pattern },
-              })
-            : null,
         ...countryNames.map((country) => {
             const meta = countriesMeta[country];
             if (!meta) return null;

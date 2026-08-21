@@ -6,6 +6,32 @@
 
 ## [Unreleased]
 
+### 2026-08-21 同步：上游 v2.5.5 → v2.7.0（干净基底 + 语义重放）
+
+- 开始：2026-08-21 （本地时间）
+- 结束：2026-08-21
+- 类型：上游同步 / 版本升级 / 源码重放
+- 对象：`src/` 全部（constants/types/rules/proxy_groups/selectors/main/rule_providers/node_parser/dns）、`scripts/build.mjs`
+- 原因：
+  - 上游 powerfullz/override-rules 发布 v2.7.0（新增 Tailscale 支持、移除 SSH 组、重写 rules.ts 为数组化、大改 dns.ts、简化 tun.ts）
+  - 经 9 家 AI 共识与用户决策，采用"以上游 v2.7.0 为干净基底 + 语义重放自定义"方式同步，而非 direct merge（避免 7 文件冲突、保留自定义可控）
+- 修改（相对上游 v2.7.0 净重放的自定义）：
+  - `constants.ts`：保留上游 LOW_COST/TAILSCALE 常量；删除 SSH（跟上游）；增补 AI_FALLBACK/ADOBE/AUTODESK 常量
+  - `rule_providers.ts`：保留我们的强制覆盖 provider（MustDirect/MustProxy/MustReject/MyDirectCDN/Autodesk/Adobe）；取代上游第三方 StaticResources 规则集（沿用 ADR-0002）
+  - `rules.ts`：以上游 v2.7.0 新数组结构为底，重放强制链（MustReject→MustDirect→MustProxy）+ Adobe/Autodesk + MyDirectCDN；删 SSH 规则；保留上游 Tailscale 3 条规则
+  - `proxy_groups.ts`：保留上游 TAILSCALE 组；自定义 AI服务/AI故障转移/ADOBE/AUTODESK 组；移除低倍率组（沿用 fork 一贯决策）
+  - `selectors.ts`：移除低倍率（LOW_COST）引用（因不生成低倍率组，避免悬空引用）
+  - `main.ts`：保留上游 buildRules(hasTailscale)/buildTunConfig 新调用；重放 x-override-rules 版本元信息注入
+  - `types.ts`：重放 x-override-rules/OverrideRulesMeta 类型；移除 BuildBaseListsInput 的 lowCostNodes 入参
+  - `build.mjs`：重放 esbuild define 版本注入（OVERRIDE_RULES_VERSION/SCHEMA）
+  - `node_parser.ts` / `dns.ts` / `tun.ts` / `args.ts` / `utils.ts`：直接用上游 v2.7.0（无我们的自定义）
+- 验证：
+  - `npx tsgo --noEmit` typecheck 通过（exit 0）
+  - （待行为验收：同输入新旧产物 YAML 结构 diff，只允许上游改动 + 我们主动调整两类差异）
+- 影响：同步后基于上游 v2.7.0 + 我们的自定义；SSH 组移除、低倍率组移除（均为用户决策）；Tailscale 支持生效
+- 撤回：否（branch `backup/v2.5.16-pre-sync-v2.7.0` 为安全网）
+- author: ai
+
 ### 2026-08-21 运维：GitHub 凭据文件迁移到标准位置 + 首次 push 上线
 
 - 开始：2026-08-21 （本地时间）

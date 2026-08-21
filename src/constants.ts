@@ -19,6 +19,10 @@ export const PROXY_GROUPS = {
     FRONT_PROXY: "前置代理",
     STATIC_RESOURCES: "静态资源",
     AI_SERVICE: "AI服务",
+    // 自定义：AI 服务故障转移组（fork 专用）
+    AI_FALLBACK: "AI故障转移",
+    ADOBE: "Adobe服务",
+    AUTODESK: "Autodesk服务",
     CRYPTO: "加密货币",
     APPLE: "苹果服务",
     GOOGLE: "谷歌服务",
@@ -39,7 +43,6 @@ export const PROXY_GROUPS = {
     TWITCH: "Twitch",
     WEIBO: "新浪微博",
     PIKPAK: "PikPak网盘",
-    SSH: "SSH",
     SOGOU_INPUT: "搜狗输入法",
     AD_BLOCK: "广告拦截",
     GLOBAL: "GLOBAL",
