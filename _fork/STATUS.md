@@ -93,6 +93,12 @@ bug 修复（低倍率节点残留引用 + Adobe/Autodesk 图标 404）、文档
 
 详见 _fork/CHANGELOG.md（最后 10 条记录按时间正序）。
 
+（2026-08-21）新增 volces.com 强制直连规则：
+
+- 在 `ruleset/MustDirect.list` 末尾追加 `DOMAIN,ark.cn-beijing.volces.com`（火山引擎方舟大模型服务）
+- 该 provider 已由 `src/rule_providers.ts` 的 `MustDirect` 引用（`@main/ruleset/MustDirect.list`），key 与文件名一致，无需改源码
+- 本次只改 `.list` + CHANGELOG/STATUS 记录，未改任何 `src/*.ts` 源码，故无产物生成
+
 ## 下一步待办
 
 - [x] 在 GitHub 上 Fork `powerfullz/override-rules`（`LeiD215/override-rules`）

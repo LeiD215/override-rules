@@ -37,6 +37,21 @@ https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js#grouptype=0&fa
 
 **详细文档**：见同目录 `_fork/USER_SUB_STORE_CONFIG.md`
 
+## [2026-08-21] 新增：volces.com（火山引擎存储）强制直连
+
+- 开始：2026-08-21 （本地时间）
+- 结束：2026-08-21
+- 类型：新增规则 / 强制直连名单
+- 对象：`ruleset/MustDirect.list`
+- 原因：用户要求把 `ark.cn-beijing.volces.com`（火山引擎方舟，字节跳动大模型服务平台）加入强制直连名单。该域名走字节国内基础设施，直连更合适。
+- 修改：在 `ruleset/MustDirect.list` 末尾追加一行 `DOMAIN,ark.cn-beijing.volces.com`
+- 验证：
+  - 文件格式符合 `DOMAIN` / `DOMAIN-SUFFIX` / `IP-CIDR` 约定，utf-8 无 BOM
+  - 该 provider 由 `src/rule_providers.ts` 的 `MustDirect` 引用（`@main/ruleset/MustDirect.list`），rule-provider key 与文件名一致，无需改源码
+- 影响：客户端拉取新的 `ruleset/MustDirect.list` 后，`ark.cn-beijing.volces.com` 强制直连（命中此规则 → DIRECT）
+- 撤回：否
+- author: ai
+
 ## [2026-08-13] 修复：AI服务 / AI故障转移 跨 fork 用户通用化（去 dllxr1r 专属硬编码）
 
 - 开始：2026-08-13 08:30 UTC (UTC+0)
