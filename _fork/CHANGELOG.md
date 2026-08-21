@@ -27,6 +27,26 @@
 - 撤回：否
 - author: ai
 
+### 2026-08-21 运维：package.json / package-lock.json 版本号对齐到 v2.5.16
+
+- 开始：2026-08-21 （本地时间）
+- 结束：2026-08-21
+- 类型：版本号一致性修复 / 元数据对齐
+- 对象：`package.json`（version）、`package-lock.json`（version）
+- 原因：`package.json` 版本停在 `2.5.14`、`package-lock.json` 停在 `2.5.10`，而实际发布 tag 已到 `v2.5.16`，声明版本与实际发布版本脱节。发布流程虽然只认 git tag（`release.yaml` 从 `src-vX.Y.Z` 切版本、经 `OVERRIDE_RULES_VERSION` 注入产物），不依赖 package.json，但版本声明不一致是技术债，按用户要求对齐。
+- 修改：
+  - `package.json` version `2.5.14` → `2.5.16`
+  - `package-lock.json` version `2.5.10` → `2.5.16`（顶层与 packages[""] 两处）
+  - 用 `npm version 2.5.16 --no-git-tag-version` 执行，**未自动打 tag**（避免误触发 release/CI）
+- 验证：
+  - `npm run build` 成功（typecheck + esbuild exit 0）
+  - `convert.min.js` 已注入 `2.5.16` 版本元信息
+  - **MustDirect 等 rule-provider 仍指向 `@main`，规则逻辑不受版本号影响**（版本只写入 `x-override-rules` 元信息）
+  - 已上线功能的 jsDelivr 拉取不受影响（`.list` 走 `@main` 动态分支）
+- 影响：纯元数据对齐，不影响任何规则/产物/发布逻辑；客户端行为无变化
+- 撤回：否
+- author: ai
+
 ### 用户 Sub-Store 当前真实配置（2026-08-07 确认）
 
 **脚本 URL**：
