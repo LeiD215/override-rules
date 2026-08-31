@@ -91,6 +91,9 @@ const FAKE_IP_FILTER = [
     "api.bilibili.com",
     "a.w.bilicdn1.com",
     "+.apt-agent.com",
+    // 自定义：llm-api.net 已被 MustDirect 强制直连，这里同步放行 fake-ip，
+    // 让 DNS 直接返回真实 IP（与 DOMAIN-SUFFIX 语义一致，覆盖域名及子域名）
+    "+.llm-api.net",
 ];
 
 /**
