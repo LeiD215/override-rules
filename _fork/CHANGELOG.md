@@ -78,6 +78,19 @@ https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js#grouptype=0&fa
 
 **详细文档**：见同目录 `_fork/USER_SUB_STORE_CONFIG.md`
 
+### 2026-08-31 新增：llm-api.net 加入 fake-ip-filter（直连域名返回真实 IP）
+
+- 开始：2026-08-31 05:38 UTC (UTC+0)
+- 结束：2026-08-31 05:41 UTC (UTC+0)
+- 类型：规则增强 / DNS 配置
+- 对象：`src/dns.ts`（`FAKE_IP_FILTER`）
+- 原因：llm-api.net 已被 MustDirect 强制直连，但在 fake-ip 模式下被代理软件仍会收到 198.18.x.x fake-IP；将其加入 fake-ip-filter，让 DNS 直接返回真实 IP（国内直连域名）
+- 修改：`FAKE_IP_FILTER` 末尾追加 `"+.llm-api.net"`（覆盖域名及所有子域名，与 MustDirect 的 `DOMAIN-SUFFIX,llm-api.net` 语义一致）
+- 验证：`npm run build` 通过（tsgo --noEmit exit 0 + esbuild exit 0）；grep 确认 convert.min.js 中 fake-ip-filter 数组已含 `+.llm-api.net`
+- 影响：llm-api.net 及其子域名在 fake-ip 模式下返回真实 IP；MustDirect 直连规则保持不变；按用户要求未新增 AI_SERVICE 代理规则。本条目同步落在 v2.5.16 线（main）与 v2.7.0 线（sync-v2.7.0）
+- 撤回：否
+- author: ai
+
 ## [2026-08-21] 新增：volces.com（火山引擎存储）强制直连
 
 - 开始：2026-08-21 （本地时间）
