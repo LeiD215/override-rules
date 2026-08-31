@@ -15,17 +15,21 @@
 ```yaml
 仓库地址: https://github.com/LeiD215/override-rules
 上游地址: https://github.com/powerfullz/override-rules
-最新已发布版本: v2.5.16（2026-08-13 发布；dist 分支对应的 convert.min.js）
-main 分支最新提交: 18848ec（dist HEAD = v2.5.16 tag，src HEAD = 4faa790「fix(proxy-groups): AI服务 / AI故障转移 跨 fork 用户通用化」+ 18848ec「docs(_fork): CHANGELOG 补 wd(wdr) 验证记录 + release 后续验证状态」）
+最新已发布版本: v2.7.0（2026-08-31 发布；dist 分支，3a5b291）+ v2.5.17（2026-08-31 发布；dist bea96e17）
+main 分支最新提交: fb52154（v2.5.17 发布 commit；src HEAD = 6a275d3「feat(dns): llm-api.net 加入 fake-ip-filter」+ fb52154「chore(meta): bump version to 2.5.17」）
 远端 tag:
-  - src-v2.5.16（最新 src tag，指向 4faa790）
+  - src-v2.7.0（最新 src tag，指向 5df328b，2026-08-31）
+  - src-v2.5.17（指向 fb52154，2026-08-31）
+  - src-v2.5.16（指向 4faa790）
   - src-v2.5.15
   - src-v2.5.14
   - src-v2.5.13
   - src-v2.5.12
   - src-v2.5.11
   - src-v2.5.10 及更早
-  - v2.5.16（dist 分支，最新发布；指向 4042fbc）
+  - v2.7.0（dist 分支，最新发布；指向 3a5b291）
+  - v2.5.17（dist 分支；指向 bea96e17）
+  - v2.5.16（dist 分支；指向 4042fbc）
   - v2.5.15（dist 分支）
   - v2.5.14（dist 分支）
   - v2.5.13（dist 分支）
@@ -33,7 +37,7 @@ main 分支最新提交: 18848ec（dist HEAD = v2.5.16 tag，src HEAD = 4faa790�
   - v2.5.11（dist 分支）
 最终产出链接: https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js
 dist 分支: https://github.com/LeiD215/override-rules/tree/dist
-GitHub Release: https://github.com/LeiD215/override-rules/releases/tag/v2.5.16
+GitHub Release: https://github.com/LeiD215/override-rules/releases/tags/v2.7.0（另有 v2.5.17）
 维护者: Hermes Agent（LeiD998），GitHub 账号 LeiD215
 接手日期: 2026-07-21
 记录体系: blackbox（2026-07-24 从 logbook 迁移）
@@ -48,7 +52,7 @@ Sub-Store 真实配置: 见 _fork/USER_SUB_STORE_CONFIG.md（5 变量:grouptype=
 
 | 内容 | 状态 |
 |---|---|
-| 上游跟踪版本：Fork 时的 main 分支（对应 upstream release v2.5.5，2026-06-30），之后未同步过上游更新 | 未解决（仍落后于 upstream） |
+| 上游跟踪版本：Fork 时的 main 分支（对应 upstream release v2.5.5，2026-06-30），之后未同步过上游更新 | 已解决（2026-08-31 发布 v2.7.0：上游 v2.5.5→v2.7.0 干净基底 + 语义重放完成并上线，含 Tailscale 支持、SSH 组移除、rules.ts 数组化等上游变更） |
 | 之前两次发版误判（"内容为空/只加一条数据不需要发布"，漏了 rule-provider 引用本身要靠发布才能编译进 convert.min.js）导致 v2.5.10 实际是补发布 | 已解决（v2.5.10 已补发布；规则改写进 SOP.md，要求"任何 main 改动 → 立刻打 tag release，不区分内容多少"） |
 | 之前 release workflow 没集成 git-cliff，靠 awk 抽 CHANGELOG 第一个数字版本号标题，导致 fork 5 commit 漏显示、CHANGELOG 日期段被当作"未受管" | 已解决（v2.5.12 release.yaml "Generate Release Notes" step 改为 `npx git-cliff --tag src-$VERSION --no-exec > RELEASE_NOTES.md`） |
 | Autodesk 服务图标缺失（convert.min.js ADOBE/AUTODESK icon URL 引用 Koolson/Qure IconSet/Color/Adobe.png 等，但这些文件在上游并不存在） | 已解决（v2.5.13 fork 自身 icons/Adobe.png + icons/Autodesk.png，引用改为 `@main/icons/...`） |
@@ -99,6 +103,15 @@ bug 修复（低倍率节点残留引用 + Adobe/Autodesk 图标 404）、文档
 - 该 provider 已由 `src/rule_providers.ts` 的 `MustDirect` 引用（`@main/ruleset/MustDirect.list`），key 与文件名一致，无需改源码
 - 本次只改 `.list` + CHANGELOG/STATUS 记录，未改任何 `src/*.ts` 源码，故无产物生成
 
+（2026-08-31）fake-ip-filter 修复双线落地 + 双版本发布 v2.5.17 / v2.7.0：
+
+- 05:20–05:41 UTC：llm-api.net 加入 `FAKE_IP_FILTER`（`+.llm-api.net`，与 MustDirect DOMAIN-SUFFIX 语义一致），main（`6a275d3`）与 sync-v2.7.0（`5df328b`）双线落地，构建验证通过
+- 05:43 UTC：sync-v2.7.0 推送远端（2c2e138..5df328b）
+- 05:50–05:57 UTC：发布 **v2.5.17**（main 线：version bump commit `fb52154` → main 首次 push `1cdccfc..fb52154` → tag `src-v2.5.17` → CI dist `bea96e17` → GitHub Release v2.5.17，release 379538816）
+- 05:58–06:02 UTC：发布 **v2.7.0**（sync 线：`git tag -f src-v2.7.0` 指向 `5df328b` → CI dist `3a5b291` → GitHub Release v2.7.0，release 379539494）
+- 验证：`@v2.5.17` / `@v2.7.0` 链接均 HTTP 200 且产物含 llm-api（修复生效）；无版本号链接（最新 release）现指向 v2.7.0；v2.5.16 / v2.5.17 tag 保留可回退
+- 用户下一步：Sub-Store 双订阅测试（`@v2.5.17` 稳定线 + `@v2.7.0` 测试线）
+
 ## 下一步待办
 
 - [x] 在 GitHub 上 Fork `powerfullz/override-rules`（`LeiD215/override-rules`）
@@ -115,7 +128,8 @@ bug 修复（低倍率节点残留引用 + Adobe/Autodesk 图标 404）、文档
 - [x] 修复 Adobe/Autodesk 服务图标 404（issue 3，发布 v2.5.13）
 - [x] 补齐今天所有未落盘的 blackbox 记录（2026-07-27 12:55 UTC，用户追问触发）
 - [x] 修复 AI服务 / AI故障转移 跨 fork 用户通用化（fork 服务 3 个独立 Sub-Store 用户 dllxr1r/wmr/wd，wmr/wd 之前因 dllxr1r 专属节点硬编码导致 yaml 解析失败），发布 v2.5.16（2026-08-13）
-- [ ] 同步上游更新（当前落后于 upstream，Fork 时基于 v2.5.5）
+- [x] 同步上游更新（2026-08-31 发布 v2.7.0 完成，含 fake-ip-filter 修复）
+- [ ] 用户测试 v2.7.0（Sub-Store 双订阅：`@v2.5.17` 稳定线 + `@v2.7.0` 测试线）；测试通过后决定主力版本，必要时把 sync-v2.7.0 合回 main
 - [ ] 后续按需继续往 MustDirect/MustProxy 补充域名/IP
 - [ ] （可选）scripts/build.mjs prettier 报警 — 已接受为技术债，不主动修复
 

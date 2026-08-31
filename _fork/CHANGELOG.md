@@ -91,6 +91,21 @@ https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js#grouptype=0&fa
 - 撤回：否
 - author: ai
 
+## [2026-08-31] 发布：v2.5.17 + v2.7.0（fake-ip-filter 修复双线上线）
+
+- 开始：2026-08-31 05:50 UTC (UTC+0)
+- 结束：2026-08-31 06:03 UTC (UTC+0)
+- 类型：发布 / 版本发布
+- 对象：`main` 分支（v2.5.17）、`sync-v2.7.0` 分支（v2.7.0）
+- 原因：用户确认「同时使用两个版本号」——v2.5.17 为稳定保底线（v2.5.16 + 今天的 fake-ip-filter 修复），v2.7.0 为测试线（上游 2.7.0 全部 + fork 自定义 + 修复），双订阅各指各的版本号
+- 修改：
+  - **v2.5.17**：main 上 `npm version 2.5.17 --no-git-tag-version --ignore-scripts`（package.json + lock 两处，commit `fb52154`）；main 首次 push 上线（`1cdccfc..fb52154`）；tag `src-v2.5.17` → CI 构建 dist（`bea96e17`）+ GitHub Release v2.5.17；jsDelivr `@v2.5.17` HTTP 200
+  - **v2.7.0**：sync-v2.7.0 上 `git tag -f src-v2.7.0`（本地 force 覆盖上游自动跟随的旧 ref `e5ef107`，指向 `5df328b`）→ CI 构建 dist（`3a5b291`）+ GitHub Release v2.7.0；jsDelivr `@v2.7.0` HTTP 200
+- 验证：两个版本链接均 HTTP 200 且产物含 `llm-api`（fake-ip-filter 修复已随构建注入）；无版本号链接（最新 release）现指向 **v2.7.0**；本地 tag 已 fetch 同步（v2.7.0→3a5b291 / v2.5.17→bea96e17）
+- 影响：用户无版本号订阅自动切到 v2.7.0（即测试开始）；要留在稳定线需把 Sub-Store 脚本 URL 钉到 `@v2.5.17`；测试不满意可随时钉回/回退
+- 撤回：否（v2.5.16 / v2.5.17 tag 与链接均保留可用）
+- author: ai
+
 ## [2026-08-21] 新增：volces.com（火山引擎存储）强制直连
 
 - 开始：2026-08-21 （本地时间）
