@@ -91,6 +91,19 @@ https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js#grouptype=0&fa
 - 撤回：否
 - author: ai
 
+### 2026-09-05 规则：MustDirect 新增 i00.pro 强制直连（0-0.pro 管理员提供的直连别名，有实测依据）
+
+- 开始：2026-09-05
+- 结束：2026-09-05
+- 类型：规则 / 数据清单
+- 对象：`ruleset/MustDirect.list`
+- 原因：0-0.pro（境外聚合 API 平台）国内不可直连（见同日撤回条目），其管理员提供了别名域名 `i00.pro` 用于绕过 SNI 阻断。实测证据：i00.pro 直连 TLS 握手 ~0.87s 成功（0-0.pro 直连 TLS ~5s 失败，确认 GFW 黑名单只含 0-0.pro SNI）；`GET /v1/models`、`POST /v1/chat/completions`、`POST /v1/responses` 直连均 HTTP 200；偶发瞬时 503（重试即好）。DoH 解析 i00.pro 与 0-0.pro 同为 `157.245.196.149`（同一台 DigitalOcean 服务器，纯别名）
+- 修改：`ruleset/MustDirect.list` 末尾追加一行 `DOMAIN-SUFFIX,i00.pro`（匹配 i00.pro 及其所有子域）
+- 验证：`git diff ruleset/MustDirect.list` 仅追加一行；直连通路实测见上
+- 影响：`i00.pro` 及其子域强制直连，不再依赖代理节点；与同日 Clash Verge 侧临时 Script.js 注入规则等价（provider 刷新后临时规则可删）；用户 TASK-93679eac78bc 四模型 benchmark 采纳 endpoint = https://i00.pro/v1（USER-PROVIDED-CONFIG via 管理员）
+- 撤回：是（删除对应行并 commit `fix(rule): 撤回 i00.pro 强制直连`）
+- author: ai (Claude Code 哨兵)
+
 ### 2026-09-05 撤回：MustDirect 移除 0-0.pro 强制直连（实测国内无法直连）
 
 - 开始：2026-09-05
