@@ -117,6 +117,20 @@ https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js#grouptype=0&fa
 - 撤回：否
 - author: ai
 
+### 2026-09-05 规则：MustDirect 新增 0-0.pro 强制直连（sync-v2.7.0 同步版）
+
+- 开始：2026-09-05
+- 结束：2026-09-05
+- 类型：规则 / 数据清单
+- 对象：`ruleset/MustDirect.list`
+- 原因：用户要求将 `0-0.pro` 加入强制直连名单，要求 main 和 sync-v2.7.0 两个分支都包含
+- 修改：在 `ruleset/MustDirect.list` 末尾追加一行 `DOMAIN-SUFFIX,0-0.pro`（与 main 上 01ae26f 同步 cherry-pick 过来；匹配 `0-0.pro` 及其所有子域）
+- 验证：仅 cherry-pick 来自 main 的 01ae26f，与 main 一致；sync-v2.7.0 自身 CHANGELOG 已有 2026-08-31 fake-ip-filter 修复条目，故本次解冲突时**保留** 2026-09-05 新条目 + **丢弃** cherry-pick 带来的 2026-08-31 双版本发布记录（该记录为 main 线专属，不属于 sync-v2.7.0）
+- 影响：`0-0.pro` 在 sync-v2.7.0 分支的 MustDirect 列表中也生效；下次 sync-v2.7.0 发版时新 convert.min.js 拉到的 MustDirect 列表含此条目
+- 撤回：是（如果误加，删掉对应行并 commit `fix(rule): 撤回 0-0.pro 强制直连`，新条目通过 CHANGELOG 关联回本条）
+- author: ai
+
+## [2026-08-31] 发布：v2.5.17 + v2.7.0（fake-ip-filter 修复双线上线）
 ## [2026-08-21] 新增：volces.com（火山引擎存储）强制直连
 
 - 开始：2026-08-21 （本地时间）
