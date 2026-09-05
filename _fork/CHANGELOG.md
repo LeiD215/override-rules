@@ -91,6 +91,25 @@ https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js#grouptype=0&fa
 - 撤回：否
 - author: ai
 
+### 2026-09-05 规则：MustDirect 新增 0-0.pro 强制直连
+
+- 开始：2026-09-05
+- 结束：2026-09-05
+- 类型：规则 / 数据清单
+- 对象：`ruleset/MustDirect.list`
+- 原因：用户要求将 `0-0.pro` 加入强制直连名单，规则需立即生效（避免走代理）
+- 修改：
+  - 在 `ruleset/MustDirect.list` 末尾追加一行 `DOMAIN-SUFFIX,0-0.pro`（匹配 `0-0.pro` 及其所有子域；按现有维护惯例——6/7 条已有规则均为 `DOMAIN-SUFFIX`——采用后缀匹配而非精确匹配）
+  - 顺手补上前一条 `DOMAIN,ark.cn-beijing.volces.com` 缺失的行末换行符（POSIX 规范要求文本文件以换行结尾；当前 patch 同时加 newline + 新条目）
+- 验证：
+  - `git diff ruleset/MustDirect.list` 显示仅追加一行 + 补行末换行符，未修改既有内容
+  - 文件总行数 14 → 15 行，字节数 621 → 654（32 字节新增：`DOMAIN-SUFFIX,0-0.pro\n`）
+  - `node scripts/build.mjs` 直接跑 esbuild → exit 0，`convert.js` / `convert.min.js` 重新生成（产物被 `.gitignore` 忽略，不进 diff）
+  - `npm run typecheck` 失败：`tsgo`（`@typescript/native-preview` 7.0.0-dev）在 Node 26 下解析 `#getExePath` subpath import 报 `ERR_PACKAGE_IMPORT_NOT_DEFINED`——这是项目当前环境问题（与本次改动无关，src/ 完全未动），不阻塞 `.list` 改动生效
+- 影响：`0-0.pro` 及所有子域请求走 `DIRECT`，不再经任何代理节点；`MustDirect` provider URL 仍指向 `@main/ruleset/MustDirect.list`，push 后 jsDelivr 立即可拉到更新（branch 引用无须发版，Sub-Store 端若已开启会自动重拉；interval 86400s 周期内用户可手动触发一次 "更新 rule-provider" 立即生效）
+- 撤回：是（如果误加，删掉对应行并 commit `fix(rule): 撤回 0-0.pro 强制直连`，新条目通过 CHANGELOG 关联回本条）
+- author: ai
+
 ## [2026-08-31] 发布：v2.5.17 + v2.7.0（fake-ip-filter 修复双线上线）
 
 - 开始：2026-08-31 05:50 UTC (UTC+0)
