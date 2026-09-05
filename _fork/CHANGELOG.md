@@ -91,6 +91,19 @@ https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js#grouptype=0&fa
 - 撤回：否
 - author: ai
 
+### 2026-09-05 撤回：MustDirect 移除 0-0.pro 强制直连（实测国内无法直连）
+
+- 开始：2026-09-05
+- 结束：2026-09-05
+- 类型：规则 / 数据清单（撤回）
+- 对象：`ruleset/MustDirect.list`
+- 原因：撤回本文件下方「2026-09-05 规则：MustDirect 新增 0-0.pro 强制直连」条目。实测证据：规则生效后 `https://0-0.pro/` 与 `https://api.0-0.pro/v1/models` 均出现 TCP 可建连但 TLS 握手 ~5s 失败（curl exit 35，多次复现）；撤回前同请求经代理节点返回 HTTP 200。DoH (1.1.1.1) 解析两域名均为 `157.245.196.149`（DigitalOcean 境外单点）。结论：0-0.pro 属境外不可直连域名，与 MustDirect 现有成员（国内服务）性质不符，强制直连导致站点不可达
+- 修改：`ruleset/MustDirect.list` 删除 `DOMAIN-SUFFIX,0-0.pro` 一行（diff 仅此 1 行删除，其余内容未动）
+- 验证：`git diff ruleset/MustDirect.list` 显示仅删除该行；15 → 14 条目
+- 影响：`0-0.pro` 及其子域恢复走代理（MustProxy/业务规则链）；push 后 jsDelivr @main 立即可拉到更新，用户需在面板对 MustDirect rule-provider 手动触发一次"更新"立即生效
+- 撤回：本条目即撤回，关联原新增条目（同日上方）；如需再次尝试，须先解决境外可达性问题（不可简单直连）
+- author: ai (Claude Code 哨兵)
+
 ### 2026-09-05 规则：MustDirect 新增 0-0.pro 强制直连
 
 - 开始：2026-09-05
