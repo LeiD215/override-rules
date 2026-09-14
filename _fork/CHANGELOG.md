@@ -155,6 +155,25 @@ https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js#grouptype=0&fa
 - 撤回：是（如果误加，删掉对应行并 commit `fix(rule): 撤回 0-0.pro 强制直连`，新条目通过 CHANGELOG 关联回本条）
 - author: ai
 
+## [2026-09-14] 发布：v2.7.1（JPMustProxy / USMustProxy 规则随生产 convert.min.js 上线）
+
+- 开始：2026-09-14（本地时间）
+- 结束：2026-09-14
+- 类型：发布 / 版本发布 / 生产产物上线
+- 对象：dist 分支 `convert.min.js`+`convert.js`+`yamls/`+`manifest.json`、Release v2.7.1、src（sync-v2.7.0 `875cf27`）
+- 原因：JPMustProxy / USMustProxy（手动选择节点强制代理名单）此前仅在源码 / sync-v2.7.0，线上生产 `convert.min.js` 是 8-31 v2.7.0 旧构建 → "更新订阅只刷节点不刷规则"，新规则不进客户端生成的 YAML；按既有 SOP"任何 src/ruleset 改动 → 立刻打 tag release"补发布（规则记录见本文件 [Unreleased] 2026-09-14 规则条目）。
+- 修改：
+  - 打 `src-v2.7.1` @ `875cf27`（v2.7.0 线）→ GitHub Actions `release.yaml` 重建产物
+  - dist force-push `3a5b291..f07cd59c`；tag `v2.7.1` → `f07cd59c`；GitHub Release v2.7.1（git-cliff 自动 notes）
+- 验证（live）：
+  - `convert.min.js` 多路径（bare / `@v2.7.1` / `@dist` / `@f07cd59c`）均 22,186B，含 `JPMustProxy`/`USMustProxy`/`日本节点`/`美国节点`
+  - `manifest.json`：tag=`v2.7.1`，src commit=`875cf27`，fileCount=194
+  - 示例 YAML（dist/yamls）确有 `RULE-SET,JPMustProxy,日本节点` / `RULE-SET,USMustProxy,美国节点`，且 proxy-groups 含 `日本节点`/`美国节点` select 组 → 手动选节点用这两个现有组，**无需新建 JPMustProxy/USMustProxy 分组**
+- 影响：客户端重新生成订阅 YAML 后出现上述两条 RULE-SET；`0-0.pro` 命中后默认走 `日本节点` 组。
+- 已知尾项：`ruleset/JPMustProxy.list` / `USMustProxy.list` 的 `@main` 分支路径因 jsDelivr 对"从未存在路径"的 404 缓存，按 07-31 规程 purge（2026-09-14 09:57 UTC 起多轮）后未即时刷新；`@commit` / `@v2.7.1` 不可变路径正常。待 404 缓存过期（通常数小时）自愈；如需即时可用可将 provider URL 钉 `@v2.7.1`（须另发小版本）。
+- 撤回：否
+- author: ai（哨兵-Claude Code，经 USER 授权执行）
+
 ## [2026-08-31] 发布：v2.5.17 + v2.7.0（fake-ip-filter 修复双线上线）
 
 - 开始：2026-08-31 05:50 UTC (UTC+0)
