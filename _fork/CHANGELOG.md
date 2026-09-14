@@ -6,6 +6,24 @@
 
 ## [Unreleased]
 
+### 2026-09-14 规则：拆分可手动选择节点的强制代理名单（JPMustProxy / USMustProxy）已同步到 main（v2.5.x 线）
+
+- 开始：2026-09-14（本地时间）
+- 结束：2026-09-14
+- 类型：新增 / 规则策略 / 双版本线同步 / 文档补记
+- 对象：`src/rule_providers.ts`、`src/rules.ts`、`ruleset/JPMustProxy.list`、`ruleset/USMustProxy.list`、`_fork/CHANGELOG.md`
+- 原因：用户要求"这个规则两个版本都需要增加"——该规则此前已在 `sync-v2.7.0`（v2.7.0 线）落地（对应 commit `c1d7724` + `875cf27`），本记录为其在 `main`（v2.5.x 线 / v2.5.17 发布线）的等价移植，保证两条版本线行为一致。
+- 修改：
+  - 新增 `ruleset/JPMustProxy.list`（当前含 `DOMAIN-SUFFIX,0-0.pro`）。
+  - 新增 `ruleset/USMustProxy.list`（暂空，待后续加域名）。
+  - 新增 `JPMustProxy` / `USMustProxy` 两个 rule-provider，均指向 `.../override-rules@main/ruleset/*.list`（本移植后 main 上即存在对应文件）。
+  - 新增 `RULE-SET,JPMustProxy,日本节点` 与 `RULE-SET,USMustProxy,美国节点` —— 命中域名默认进入对应的可手动选择 select 组（组名与 v2.7.0 线最终语义一致，非 `PROXY_GROUPS.MANUAL`，因 main 无此分组常量）。
+  - 保持 `ruleset/MustProxy.list` 内容与 `RULE-SET,MustProxy,选择代理` 路由不变；`i00.pro` 继续在 `MustDirect` 强制直连。
+- 验证：`git diff --check` 通过；`npx tsc --noEmit` 因本机缺 `@typescript/native-preview-win32-x64` 无法执行成功（与 v2.7.0 线记录同款环境限制）；改动为对 v2.7.0 线已验证代码的机械移植，语义逐条对照。
+- 影响：`0-0.pro` 及其子域命中后默认进入"日本节点"组并可手动选择具体节点；`USMustProxy` 未来加条目后默认进入"美国节点"组；现有 `MustProxy` 用户行为不变；`i00.pro` 继续强制直连。
+- 撤回：否
+- author: ai（哨兵-Claude Code 按 USER 指令执行，commit 由 USER 复核合并）
+
 ### 2026-08-21 运维：GitHub 凭据文件迁移到标准位置 + 首次 push 上线
 
 - 开始：2026-08-21 （本地时间）
