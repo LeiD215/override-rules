@@ -6,6 +6,27 @@
 
 ## [Unreleased]
 
+### 2026-09-14 规则：拆分可手动选择的强制代理名单
+
+- 开始：2026-09-14（本地时间）
+- 结束：2026-09-14（本地时间）
+- 类型：新增 / 规则策略 / 文档补记
+- 对象：`src/rule_providers.ts`、`src/rules.ts`、`ruleset/JPMustProxy.list`、`ruleset/USMustProxy.list`、`_fork/STATUS.md`
+- 原因：用户确认 `i00.pro` 继续保留在 `MustDirect`，同时要求将强制代理需求拆成两种策略：现有 `MustProxy` 保持原行为（走“选择代理”），新增一份可由用户手动选择具体节点的强制代理名单。
+- 修改：
+  - 保持 `ruleset/MustProxy.list` 内容不变，以及 `RULE-SET,MustProxy,选择代理` 路由不变。
+  - 新增 `JPMustProxy` rule-provider，指向 `ruleset/JPMustProxy.list`。
+  - 新增 `ruleset/JPMustProxy.list`，加入 `DOMAIN-SUFFIX,0-0.pro`。
+  - 新增 `RULE-SET,JPMustProxy,手动选择`，使命中域名由用户手动选择具体代理节点。
+  - 按用户追加需求新增空的 `USMustProxy` rule-provider 和 `ruleset/USMustProxy.list`，并新增 `RULE-SET,USMustProxy,手动选择`；列表暂未加入域名。
+  - 核对确认 `ruleset/MustDirect.list` 中的 `DOMAIN-SUFFIX,i00.pro` 未修改。
+  - 补正 `_fork/STATUS.md` 的 v2.7.0 同步状态。
+- 验证：通过 `npm run lint`、`npx tsc --noEmit`、规则/provider 静态检查和 `git diff --check`；`npm run typecheck` 与 `npm run build` 因本机缺少 `@typescript/native-preview-win32-x64` 未能执行成功。
+- 影响：`0-0.pro` 及其子域命中后进入“手动选择”，现有 `MustProxy` 用户行为不变；`i00.pro` 继续强制直连。
+- 撤回：否
+- author: ai
+- verified_by:
+
 ### 2026-08-21 同步：上游 v2.5.5 → v2.7.0（干净基底 + 语义重放）
 
 - 开始：2026-08-21 （本地时间）

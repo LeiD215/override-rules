@@ -15,8 +15,9 @@
 ```yaml
 仓库地址: https://github.com/LeiD215/override-rules
 上游地址: https://github.com/powerfullz/override-rules
-最新已发布版本: v2.5.16（2026-08-13 发布；dist 分支对应的 convert.min.js）
-main 分支最新提交: 18848ec（dist HEAD = v2.5.16 tag，src HEAD = 4faa790「fix(proxy-groups): AI服务 / AI故障转移 跨 fork 用户通用化」+ 18848ec「docs(_fork): CHANGELOG 补 wd(wdr) 验证记录 + release 后续验证状态」）
+当前源码基线: 上游 v2.7.0（upstream/main = e88deb8；本地工作分支 sync-v2.7.0 在其上超前 7 个提交）
+当前源码 HEAD: 以 `git rev-parse HEAD` 为准（当前已包含 MustDirect 的 i00.pro 规则）
+最新已发布版本: v2.5.16（2026-08-13 发布；v2.7.0 同步分支尚未发布）
 远端 tag:
   - src-v2.5.16（最新 src tag，指向 4faa790）
   - src-v2.5.15
@@ -42,19 +43,19 @@ Sub-Store 真实配置: 见 _fork/USER_SUB_STORE_CONFIG.md（5 变量:grouptype=
 
 ## 项目状态
 
-`已完成维护中`
+`v2.7.0 同步分支维护中；待用户确认后发布`
 
 ## 已知盲点
 
 | 内容 | 状态 |
 |---|---|
-| 上游跟踪版本：Fork 时的 main 分支（对应 upstream release v2.5.5，2026-06-30），之后未同步过上游更新 | 未解决（仍落后于 upstream） |
+| 上游跟踪版本：已从 v2.5.5 同步到 upstream v2.7.0，当前分支为同步后的维护分支 | 已解决（当前本地分支基于 e88deb8） |
 | 之前两次发版误判（"内容为空/只加一条数据不需要发布"，漏了 rule-provider 引用本身要靠发布才能编译进 convert.min.js）导致 v2.5.10 实际是补发布 | 已解决（v2.5.10 已补发布；规则改写进 SOP.md，要求"任何 main 改动 → 立刻打 tag release，不区分内容多少"） |
 | 之前 release workflow 没集成 git-cliff，靠 awk 抽 CHANGELOG 第一个数字版本号标题，导致 fork 5 commit 漏显示、CHANGELOG 日期段被当作"未受管" | 已解决（v2.5.12 release.yaml "Generate Release Notes" step 改为 `npx git-cliff --tag src-$VERSION --no-exec > RELEASE_NOTES.md`） |
 | Autodesk 服务图标缺失（convert.min.js ADOBE/AUTODESK icon URL 引用 Koolson/Qure IconSet/Color/Adobe.png 等，但这些文件在上游并不存在） | 已解决（v2.5.13 fork 自身 icons/Adobe.png + icons/Autodesk.png，引用改为 `@main/icons/...`） |
 | scripts/build.mjs 在 prettier --check 下报警（4 行 const 写法不符合 prettier 行宽，被 prettier --write 改成单行 const） | 未解决（不影响功能；未提交过修改；决定先不动 — 若未来 prettier --write 自动改也没影响） |
 | `ruleset/MustReject.list` 改名后未感知：ruleset/ 目录不在 src/ 或 icons/ 下，但 v2.5.14 加新 rule-provider（MustReject）时，CI 端 `release.yaml` 的 `Validate source` step 只跑 typecheck+format+lint，没验证 `src/rule_providers.ts` 里的新 provider key 跟 `ruleset/*.list` 文件名一致；未来如果重命名 `.list` 但忘了同步 `src/rule_providers.ts` 会沉默上线 | 未解决 |
-| pre-commit hook 覆盖范围不全，漏检 ruleset/ 目录：当前 `.husky/pre-commit` 只对 `src/` 和 `icons/` 改动强制伴生 `_fork/CHANGELOG.md`；`ruleset/*.list` 改动（例 v2.5.14 的 6 条 MaaS/DeepSeek/MiniMax + 2 条 tuna/aliyun）完全无强制记录机制，只能靠 lint-staged prettier 自动跑（前提是文件能被 prettier 解析——`.list` 当前不在 prettier config 里所以也跑不到），存在"改了 ruleset 又忘记写 CHANGELOG"的静默路径 | 未补 |
+| pre-commit hook 覆盖范围不全，漏检 ruleset/ 目录：`.husky/pre-commit` 只对 `src/` 和 `icons/` 改动强制伴生 `_fork/CHANGELOG.md`，ruleset 数据清单仍依赖流程自觉记录 | 未解决（本次已手工补记） |
 | 缺一个架构 ADR 说明 pre-commit hook 为什么只覆盖 src/ + icons/，以及 ruleset/ 是否也需要纳入：决定本身有"业务规则源码 vs 数据清单"的二分考量（src/ 是代码，ruleset/ 是数据），但 fork 没有正式记录这个判断，未来维护者（人或 agent）接手时容易重复踩坑 | 未补 |
 | `_fork/CHANGELOG.md` 今天 5 commit + 3 release + 2 issue 修复 + 1 图标修复的私有记录全部脱记超过 3 小时 | 已解决（2026-07-27 12:55 UTC 用户追问后批量补记） |
 | 接管过期软锁：之前 STATUS.md 的 "🔒 占用中" 标记从 09:23 UTC 起占着、TTL 30 分钟早过、打算做的"改 Apple/Microsoft 服务组默认走 DIRECT"实际早就完成并覆盖到 commit 1e0a376，但锁没有清（被 task 1 的 commit 隐式完成） | 已解决（已接管并刷新标记；新建 task 标记"补记"，已落盘所有脱记记录） |
@@ -115,8 +116,9 @@ bug 修复（低倍率节点残留引用 + Adobe/Autodesk 图标 404）、文档
 - [x] 修复 Adobe/Autodesk 服务图标 404（issue 3，发布 v2.5.13）
 - [x] 补齐今天所有未落盘的 blackbox 记录（2026-07-27 12:55 UTC，用户追问触发）
 - [x] 修复 AI服务 / AI故障转移 跨 fork 用户通用化（fork 服务 3 个独立 Sub-Store 用户 dllxr1r/wmr/wd，wmr/wd 之前因 dllxr1r 专属节点硬编码导致 yaml 解析失败），发布 v2.5.16（2026-08-13）
-- [ ] 同步上游更新（当前落后于 upstream，Fork 时基于 v2.5.5）
+- [x] 同步上游更新到 v2.7.0（当前分支 `sync-v2.7.0`，基于 `upstream/main`）
 - [ ] 后续按需继续往 MustDirect/MustProxy 补充域名/IP
+- [ ] 发布 v2.7.0 同步分支的正式产物（需用户确认版本和发布时机）
 - [ ] （可选）scripts/build.mjs prettier 报警 — 已接受为技术债，不主动修复
 
 ---

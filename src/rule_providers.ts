@@ -59,6 +59,22 @@ export const ruleProviders: Record<string, RuleProvider> = {
         url: `${CDN_URL}/gh/LeiD215/override-rules@main/ruleset/MustProxy.list`,
         path: "./ruleset/MustProxy.list",
     },
+    JPMustProxy: {
+        type: "http",
+        behavior: "classical",
+        format: "text",
+        interval: 86400,
+        url: `${CDN_URL}/gh/LeiD215/override-rules@main/ruleset/JPMustProxy.list`,
+        path: "./ruleset/JPMustProxy.list",
+    },
+    USMustProxy: {
+        type: "http",
+        behavior: "classical",
+        format: "text",
+        interval: 86400,
+        url: `${CDN_URL}/gh/LeiD215/override-rules@main/ruleset/USMustProxy.list`,
+        path: "./ruleset/USMustProxy.list",
+    },
     Adobe: {
         type: "http",
         behavior: "domain",
