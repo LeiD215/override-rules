@@ -23,6 +23,7 @@
 - 影响：`0-0.pro` 及其子域命中后默认进入"日本节点"组并可手动选择具体节点；`USMustProxy` 未来加条目后默认进入"美国节点"组；现有 `MustProxy` 用户行为不变；`i00.pro` 继续强制直连。
 - 撤回：否
 - author: ai（哨兵-Claude Code 按 USER 指令执行，commit 由 USER 复核合并）
+  > 补记（2026-09-14 上线核实）：本规则要进客户端生成的 YAML，需两样都上线 —— ①`ruleset/*.list` 在 main 可见（本记录后已合并，`@main` 路径待 jsDelivr 缓存刷新）；②生产 `convert.min.js` 经 release 重建（已打 `src-v2.7.1` @ 875cf27 → CI 重建 dist f07cd59c / Release v2.7.1，live 脚本已含 `JPMustProxy`/`USMustProxy`/`日本节点`/`美国节点`）。`_fork/STATUS.md` 已同步该发布事实。
 
 ### 2026-08-21 运维：GitHub 凭据文件迁移到标准位置 + 首次 push 上线
 
