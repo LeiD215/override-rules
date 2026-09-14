@@ -15,10 +15,11 @@
 ```yaml
 仓库地址: https://github.com/LeiD215/override-rules
 上游地址: https://github.com/powerfullz/override-rules
-最新已发布版本: v2.7.0（2026-08-31 发布；dist 分支，3a5b291）+ v2.5.17（2026-08-31 发布；dist bea96e17）
-main 分支最新提交: fb52154（v2.5.17 发布 commit；src HEAD = 6a275d3「feat(dns): llm-api.net 加入 fake-ip-filter」+ fb52154「chore(meta): bump version to 2.5.17」）
+最新已发布版本: v2.7.0（2026-08-31 发布；dist 分支，3a5b291）+ v2.5.17（2026-08-31 发布；dist bea96e17）；**v2.7.1（2026-09-14 发布；dist f07cd59c，含 JPMustProxy/USMustProxy 规则）**
+main 分支最新提交: 386232c fea(rules): add JPMustProxy/USMustProxy manual-select proxy lists（2026-09-14 合并；JPMustProxy/USMustProxy 规则已同步到 main v2.5.x 线，见 _fork/CHANGELOG.md 2026-09-14 记录）
 远端 tag:
-  - src-v2.7.0（最新 src tag，指向 5df328b，2026-08-31）
+  - src-v2.7.1（最新 src tag，指向 875cf27，2026-09-14）
+  - src-v2.7.0（最新 v2.7 线 tag，指向 5df328b，2026-08-31）
   - src-v2.5.17（指向 fb52154，2026-08-31）
   - src-v2.5.16（指向 4faa790）
   - src-v2.5.15
@@ -27,7 +28,8 @@ main 分支最新提交: fb52154（v2.5.17 发布 commit；src HEAD = 6a275d3「
   - src-v2.5.12
   - src-v2.5.11
   - src-v2.5.10 及更早
-  - v2.7.0（dist 分支，最新发布；指向 3a5b291）
+  - v2.7.0（dist 分支；指向 3a5b291）
+  - v2.7.1（dist 分支；指向 f07cd59c，2026-09-14）
   - v2.5.17（dist 分支；指向 bea96e17）
   - v2.5.16（dist 分支；指向 4042fbc）
   - v2.5.15（dist 分支）
@@ -37,7 +39,7 @@ main 分支最新提交: fb52154（v2.5.17 发布 commit；src HEAD = 6a275d3「
   - v2.5.11（dist 分支）
 最终产出链接: https://cdn.jsdelivr.net/gh/LeiD215/override-rules/convert.min.js
 dist 分支: https://github.com/LeiD215/override-rules/tree/dist
-GitHub Release: https://github.com/LeiD215/override-rules/releases/tags/v2.7.0（另有 v2.5.17）
+GitHub Release: https://github.com/LeiD215/override-rules/releases/tags/v2.7.1（另有 v2.7.0、v2.5.17）
 维护者: Hermes Agent（LeiD998），GitHub 账号 LeiD215
 接手日期: 2026-07-21
 记录体系: blackbox（2026-07-24 从 logbook 迁移）
@@ -62,6 +64,7 @@ Sub-Store 真实配置: 见 _fork/USER_SUB_STORE_CONFIG.md（5 变量:grouptype=
 | 缺一个架构 ADR 说明 pre-commit hook 为什么只覆盖 src/ + icons/，以及 ruleset/ 是否也需要纳入：决定本身有"业务规则源码 vs 数据清单"的二分考量（src/ 是代码，ruleset/ 是数据），但 fork 没有正式记录这个判断，未来维护者（人或 agent）接手时容易重复踩坑 | 未补 |
 | `_fork/CHANGELOG.md` 今天 5 commit + 3 release + 2 issue 修复 + 1 图标修复的私有记录全部脱记超过 3 小时 | 已解决（2026-07-27 12:55 UTC 用户追问后批量补记） |
 | 接管过期软锁：之前 STATUS.md 的 "🔒 占用中" 标记从 09:23 UTC 起占着、TTL 30 分钟早过、打算做的"改 Apple/Microsoft 服务组默认走 DIRECT"实际早就完成并覆盖到 commit 1e0a376，但锁没有清（被 task 1 的 commit 隐式完成） | 已解决（已接管并刷新标记；新建 task 标记"补记"，已落盘所有脱记记录） |
+| 新规则上线链路（2026-09-14 真实事故）：用户加 `JPMustProxy`/`USMustProxy` 规则并 push（仅进 sync-v2.7.0 源码），但线上生产 `convert.min.js` 是 dist 旧构建（8-31 v2.7.0，未重建）——"更新订阅只刷节点、不刷规则"，新规则不会进生成的 YAML；另 `ruleset/JPMustProxy.list` 在 main 上尚不存在（provider 指向 `@main`）导致 404 | 已解决（2026-09-14：PR#1 合并 list 到 main + 打 `src-v2.7.1` @ 875cf27 → CI 重建 dist f07cd59c / v2.7.1，live `convert.min.js` 已含新规则、list `@main` 路径待 jsDelivr 缓存刷新；教训 = 既有 SOP"任何 main/src 改动 → 立刻打 tag release"，ruleset/provider 改动一样要靠发布才会编译进 convert.min.js） |
 
 ## 当前阶段
 
