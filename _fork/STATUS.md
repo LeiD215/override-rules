@@ -72,6 +72,13 @@ bug 修复（低倍率节点残留引用 + Adobe/Autodesk 图标 404）、文档
 
 ## 上次做了什么
 
+（2026-09-14）手动选择节点强制代理名单（JPMustProxy/USMustProxy）双线上线：
+
+- 规则落 sync-v2.7.0（875cf27）+ main（PR#1 合入，含 `ruleset/JPMustProxy.list`=`0-0.pro`、`USMustProxy.list` 空、provider + `RULE-SET,JPMustProxy,日本节点`/`RULE-SET,USMustProxy,美国节点`）
+- `src-v2.7.1` @ 875cf27 → CI 重建 → dist `f07cd59c` / 版本 `v2.7.1` / Release v2.7.1；live `convert.min.js` 已含新规则（多路径 22,186B 实测）
+- 手动选节点用现有 `日本节点`/`美国节点` select 组；**不新建** JPMustProxy/USMustProxy 分组
+- 尾项：`@main` 下两个 `.list` 的 jsDelivr 404 缓存待过期（purge 未能清除；`@commit`/`@v2.7.1` 正常）。详见 _fork/CHANGELOG.md `## [2026-09-14] 发布：v2.7.1`
+
 （2026-07-27）一次性完成 4 个 task 实施 + 3 个已知 issue 修复：
 
 - 10:55–11:35 UTC：5 个 commit 落地（task 1-4 全套 + 物理迁移记录）
