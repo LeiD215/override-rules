@@ -8,6 +8,8 @@ const baseRules = [
     `RULE-SET,MustReject,REJECT`,
     `RULE-SET,MustDirect,DIRECT`,
     `RULE-SET,MustProxy,${PROXY_GROUPS.SELECT}`,
+    `RULE-SET,JPMustProxy,日本节点`,
+    `RULE-SET,USMustProxy,美国节点`,
     // Adobe / Autodesk：跟 MyDirectCDN 一样是"用户希望锁定"的特定服务
     // 名单，优先级应跟强制覆盖名单平起平坐（命中 → ADOBE/AUTODESK group；
     // 实际走 REJECT 还是 SELECT 由用户在客户端手动切换）。原来放在
