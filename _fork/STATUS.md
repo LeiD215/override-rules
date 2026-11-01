@@ -15,10 +15,12 @@
 ```yaml
 仓库地址: https://github.com/LeiD215/override-rules
 上游地址: https://github.com/powerfullz/override-rules
-最新已发布版本: v2.7.0（2026-08-31 发布；dist 分支，3a5b291）+ v2.5.17（2026-08-31 发布；dist bea96e17）；**v2.7.1（2026-09-14 发布；dist f07cd59c，含 JPMustProxy/USMustProxy 规则）**
+最新已发布版本: **v2.5.18（2026-11-01 发布；dist 8924110）+ v2.7.2（2026-11-01 发布；dist 0a302b8；dist 分支当前指向它）**，含 TUN 排除 10.20.30.0/24 与 MustDirect 新增；此前：v2.7.1（2026-09-14；dist f07cd59c）、v2.7.0 / v2.5.17（2026-08-31）
 main 分支最新提交: 386232c fea(rules): add JPMustProxy/USMustProxy manual-select proxy lists（2026-09-14 合并；JPMustProxy/USMustProxy 规则已同步到 main v2.5.x 线，见 _fork/CHANGELOG.md 2026-09-14 记录）
 远端 tag:
-  - src-v2.7.1（最新 src tag，指向 875cf27，2026-09-14）
+  - src-v2.7.2（指向 1eefc8f，2026-11-01；v2.7 线）
+  - src-v2.5.18（指向 b15513b，2026-11-01；main 线）
+  - src-v2.7.1（上一个 v2.7 线 src tag，指向 875cf27，2026-09-14）
   - src-v2.7.0（最新 v2.7 线 tag，指向 5df328b，2026-08-31）
   - src-v2.5.17（指向 fb52154，2026-08-31）
   - src-v2.5.16（指向 4faa790）
@@ -28,6 +30,8 @@ main 分支最新提交: 386232c fea(rules): add JPMustProxy/USMustProxy manual-
   - src-v2.5.12
   - src-v2.5.11
   - src-v2.5.10 及更早
+  - v2.7.2（dist 分支；指向 0a302b8，2026-11-01）
+  - v2.5.18（dist 分支；指向 8924110，2026-11-01）
   - v2.7.0（dist 分支；指向 3a5b291）
   - v2.7.1（dist 分支；指向 f07cd59c，2026-09-14）
   - v2.5.17（dist 分支；指向 bea96e17）
@@ -71,6 +75,8 @@ Sub-Store 真实配置: 见 _fork/USER_SUB_STORE_CONFIG.md（5 变量:grouptype=
 bug 修复（低倍率节点残留引用 + Adobe/Autodesk 图标 404）、文档体系迁移（logbook → blackbox）、强制覆盖功能（MustDirect/MustProxy）、自定义代理策略（task 1-4 四服务组默认策略 + Adobe/Autodesk 强制代理 + x-override-rules 元信息）、CI 修复（release.yaml 集成 cliff）、均已落地并发布 v2.5.13。项目进入日常维护状态。
 
 ## 上次做了什么
+
+（2026-11-01 补记）上述两分支已由 USER 在 GitHub 合并（main PR#4 → 4522c94；sync-v2.7.0 PR#5 → edf7f5b），并发布 v2.5.18 / v2.7.2：版本号提交 b15513b / 1eefc8f，src 标签由 USER 在网页 Releases 创建（环境内推送 tag 被代理 403 拒绝），Release Artifacts 两次运行均成功；稽真在隔离环境验证 tsgo / 构建 / main(config) 通过，并核对两个 dist tag 的 convert.min.js 均含 10.20.30.0/24。注意：v2.7 线 package.json 此前停在 2.7.0（2.7.1 当时没改 package.json），本次直接设为 2.7.2。
 
 （2026-11-01）TUN 排除家里网段 10.20.30.0/24 双线落地：
 
