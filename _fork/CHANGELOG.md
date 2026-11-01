@@ -6,6 +6,19 @@
 
 ## [Unreleased]
 
+### 2026-11-01 规则：MustDirect 新增 invt.com.cn 与 GitHub Container 直连域名
+
+- 开始：2026-11-01 18:45 +08:00 (UTC+8)
+- 结束：2026-11-01 18:50 +08:00 (UTC+8)
+- 类型：规则增强 / 数据清单
+- 对象：`ruleset/MustDirect.list`
+- 原因：用户要求把 `*.invt.com.cn`，以及 `ghcr.io` / `pkg-containers.githubusercontent.com` / `objects.githubusercontent.com` 加入强制直连名单。
+- 修改：`ruleset/MustDirect.list` 末尾新增 `DOMAIN-SUFFIX,invt.com.cn`、`DOMAIN,ghcr.io`、`DOMAIN,pkg-containers.githubusercontent.com`、`DOMAIN,objects.githubusercontent.com`。
+- 验证：`git diff --check` 通过；本次仅按 MustDirect rule-provider 数据格式追加条目（该 provider 已由外层 `RULE-SET,MustDirect,DIRECT` 指定动作，故列表行不含 `,DIRECT`）；`tsc/build` 环境限制同本批上一条记录，未重复视为通过。
+- 影响：`invt.com.cn` 及其子域、`ghcr.io`、GitHub 容器镜像分布域名强制 DIRECT。
+- 撤回：否
+- author: sentinel-codex-01（哨兵 Codex）
+
 ### 2026-11-01 规则：TUN 排除家里网段 10.20.30.0/24 并新增 tddt.com.cn 强制直连
 
 - 开始：2026-11-01 18:24 +08:00 (UTC+8)

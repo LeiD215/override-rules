@@ -16,3 +16,7 @@ DOMAIN,ark.cn-beijing.volces.com
 DOMAIN-SUFFIX,i00.pro
 # 自建 Tailscale 控制面 hs.tddt.com.cn 与 WebDAV dav.tddt.com.cn，必须直连
 DOMAIN-SUFFIX,tddt.com.cn
+DOMAIN-SUFFIX,invt.com.cn
+DOMAIN,ghcr.io
+DOMAIN,pkg-containers.githubusercontent.com
+DOMAIN,objects.githubusercontent.com
