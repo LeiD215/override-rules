@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+### 2026-11-01 规则：TUN 排除家里网段 10.20.30.0/24 并新增 tddt.com.cn 强制直连
+
+- 开始：2026-11-01 18:24 +08:00 (UTC+8)
+- 结束：2026-11-01 18:40 +08:00 (UTC+8)
+- 类型：规则增强 / TUN 配置 / 双版本线同步
+- 对象：`src/tun.ts`、`ruleset/MustDirect.list`
+- 原因：用户笔记本（行者）开启 Clash TUN 时，TUN 会抢走去家里 10.20.30.0/24 的流量；该网段经 Tailscale 子网路由访问，需加入 TUN 的 `route-exclude-address`。同时自建 Tailscale 控制面 `hs.tddt.com.cn` 与 WebDAV `dav.tddt.com.cn` 必须直连。
+- 修改：
+  - `src/tun.ts`：`route-exclude-address` 数组新增 `"10.20.30.0/24"`，并在函数头注释说明该网段为家里局域网、经 Tailscale 子网路由访问。
+  - `ruleset/MustDirect.list`：末尾新增注释及 `DOMAIN-SUFFIX,tddt.com.cn`。
+- 验证：`git diff --check` 通过；`npx tsc --noEmit` 本机无法执行（`node_modules` 不存在，npx 尝试从 registry 拉取 `tsc` 时 npm 缓存目录 EPERM）；`npm run build` 失败于 `typecheck` 前置步骤 `'tsgo' is not recognized as an internal or external command`。已按提示改试 `npx tsc --noEmit -p tsconfig.json`，仍因 registry/cache EPERM 失败，固记录为“本机无法执行”。`main(config)` 运行时验证因此未执行。
+- 影响：走 Clash TUN 时不再劫持 `10.20.30.0/24`，家里局域网可经 Tailscale 子网路由访问；`tddt.com.cn` 及其子域强制 DIRECT。
+- 撤回：否
+- author: sentinel-codex-01（哨兵 Codex）
+
 ### 2026-09-14 规则：拆分可手动选择节点的强制代理名单（JPMustProxy / USMustProxy）已同步到 main（v2.5.x 线）
 
 - 开始：2026-09-14（本地时间）
