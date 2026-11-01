@@ -147,7 +147,7 @@ bug 修复（低倍率节点残留引用 + Adobe/Autodesk 图标 404）、文档
 - [x] 修复 AI服务 / AI故障转移 跨 fork 用户通用化（fork 服务 3 个独立 Sub-Store 用户 dllxr1r/wmr/wd，wmr/wd 之前因 dllxr1r 专属节点硬编码导致 yaml 解析失败），发布 v2.5.16（2026-08-13）
 - [x] 同步上游更新（2026-08-31 发布 v2.7.0 完成，含 fake-ip-filter 修复）
 - [ ] 用户测试 v2.7.0（Sub-Store 双订阅：`@v2.5.17` 稳定线 + `@v2.7.0` 测试线）；测试通过后决定主力版本，必要时把 sync-v2.7.0 合回 main
-- [ ] 待推送/待用户合并并发版：TUN exclude home LAN `10.20.30.0/24` + MustDirect `tddt.com.cn`（main/sync-v2.7.0 两分支）
+- [ ] 待用户合并并发版：TUN exclude home LAN `10.20.30.0/24` + MustDirect `tddt.com.cn` / `invt.com.cn` / GitHub Container 域名（main/sync-v2.7.0 两分支已推送）
 - [ ] 后续按需继续往 MustDirect/MustProxy 补充域名/IP
 - [ ] （可选）scripts/build.mjs prettier 报警 — 已接受为技术债，不主动修复
 
