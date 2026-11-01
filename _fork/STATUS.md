@@ -72,6 +72,13 @@ bug 修复（低倍率节点残留引用 + Adobe/Autodesk 图标 404）、文档
 
 ## 上次做了什么
 
+（2026-11-01）TUN 排除家里网段 10.20.30.0/24 双线落地：
+
+- main 线与 sync-v2.7.0 线各开独立分支：`fix/tun-exclude-home-lan` 与 `fix/tun-exclude-home-lan-v27`
+- `src/tun.ts`：`route-exclude-address` 新增 `10.20.30.0/24`（家里局域网，经 Tailscale 子网路由访问）
+- `ruleset/MustDirect.list`：新增 `DOMAIN-SUFFIX,tddt.com.cn`（自建 Tailscale 控制面 `hs.tddt.com.cn` 与 WebDAV `dav.tddt.com.cn`）
+- 本机验证：`git diff --check` 通过；`npx tsc --noEmit` / `npm run build` 因缺少依赖与环境 npm 缓存 EPERM 无法执行，已如实记录
+
 （2026-09-14）手动选择节点强制代理名单（JPMustProxy/USMustProxy）双线上线：
 
 - 规则落 sync-v2.7.0（875cf27）+ main（PR#1 合入，含 `ruleset/JPMustProxy.list`=`0-0.pro`、`USMustProxy.list` 空、provider + `RULE-SET,JPMustProxy,日本节点`/`RULE-SET,USMustProxy,美国节点`）
@@ -140,6 +147,7 @@ bug 修复（低倍率节点残留引用 + Adobe/Autodesk 图标 404）、文档
 - [x] 修复 AI服务 / AI故障转移 跨 fork 用户通用化（fork 服务 3 个独立 Sub-Store 用户 dllxr1r/wmr/wd，wmr/wd 之前因 dllxr1r 专属节点硬编码导致 yaml 解析失败），发布 v2.5.16（2026-08-13）
 - [x] 同步上游更新（2026-08-31 发布 v2.7.0 完成，含 fake-ip-filter 修复）
 - [ ] 用户测试 v2.7.0（Sub-Store 双订阅：`@v2.5.17` 稳定线 + `@v2.7.0` 测试线）；测试通过后决定主力版本，必要时把 sync-v2.7.0 合回 main
+- [ ] 待用户合并并发版：TUN exclude home LAN `10.20.30.0/24` + MustDirect `tddt.com.cn` / `invt.com.cn` / GitHub Container 域名（main/sync-v2.7.0 两分支已推送）
 - [ ] 后续按需继续往 MustDirect/MustProxy 补充域名/IP
 - [ ] （可选）scripts/build.mjs prettier 报警 — 已接受为技术债，不主动修复
 
