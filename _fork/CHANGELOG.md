@@ -6,6 +6,19 @@
 
 ## [Unreleased]
 
+### 2026-11-01 DNS：tddt.com.cn 加入 fake-ip-filter（修复 tailscaled 在 Clash TUN 下登录自建控制面失败）
+
+- 开始：2026-11-01 20:30 +08:00 (UTC+8)
+- 结束：2026-11-01 20:45 +08:00 (UTC+8)
+- 类型：修复 / DNS / 双版本线同步
+- 对象：`src/dns.ts`（`FAKE_IP_FILTER`）、`package.json` / `package-lock.json`（版本号）、`_fork/CHANGELOG.md`
+- 原因：行者（Windows，Clash Verge TUN + fake-ip）装 Tailscale 后 `tailscale up --login-server=https://hs.tddt.com.cn` 一直拿不到登录网址。daemon 报 `fetch control key: dial tcp [2001:2::35]:443 ... timeout`。根因：Clash 对 hs.tddt.com.cn 的 A / AAAA 都返回 fake-ip（198.18.0.54 / 2001:2::35），而 tailscaled 的连接绑定在物理网卡、不经 TUN，fake-ip 不可达。同类先例：`+.llm-api.net`（MustDirect 域名同时要放进 fake-ip-filter；上次加 tddt.com.cn 到 MustDirect 时漏了这一步）。
+- 修改：`FAKE_IP_FILTER` 新增 `+.tddt.com.cn`；版本号 v2.7 线 2.7.2 → 2.7.3（main 线 2.5.18 → 2.5.19 另有同样改动）。
+- 验证：`tsgo --noEmit` 退出码 0；`node scripts/build.mjs` 退出码 0；模拟节点调用 `main(config)`：`dns["fake-ip-filter"]` 末尾为 `+.llm-api.net`、`+.tddt.com.cn`。
+- 影响：开启 fake-ip 的客户端对 tddt.com.cn 及子域返回真实 IP；其他域名行为不变。需发布新版本并让客户端更新订阅后生效。
+- 撤回：否
+- author: 稽真（Claude，经 USER 授权操作 fork）
+
 ### 2026-11-01 规则：MustDirect 新增 invt.com.cn 与 GitHub Container 直连域名
 
 - 开始：2026-11-01 18:45 +08:00 (UTC+8)
