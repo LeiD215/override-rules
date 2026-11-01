@@ -6,6 +6,34 @@
 
 ## [Unreleased]
 
+### 2026-11-01 规则：MustDirect 新增 invt.com.cn 与 GitHub Container 直连域名
+
+- 开始：2026-11-01 18:45 +08:00 (UTC+8)
+- 结束：2026-11-01 18:50 +08:00 (UTC+8)
+- 类型：规则增强 / 数据清单
+- 对象：`ruleset/MustDirect.list`
+- 原因：用户要求把 `*.invt.com.cn`，以及 `ghcr.io` / `pkg-containers.githubusercontent.com` / `objects.githubusercontent.com` 加入强制直连名单。
+- 修改：`ruleset/MustDirect.list` 末尾新增 `DOMAIN-SUFFIX,invt.com.cn`、`DOMAIN,ghcr.io`、`DOMAIN,pkg-containers.githubusercontent.com`、`DOMAIN,objects.githubusercontent.com`。
+- 验证：`git diff --check` 通过；本次仅按 MustDirect rule-provider 数据格式追加条目（该 provider 已由外层 `RULE-SET,MustDirect,DIRECT` 指定动作，故列表行不含 `,DIRECT`）；`tsc/build` 环境限制同本批上一条记录，未重复视为通过。
+- 影响：`invt.com.cn` 及其子域、`ghcr.io`、GitHub 容器镜像分布域名强制 DIRECT。
+- 撤回：否
+- author: sentinel-codex-01（哨兵 Codex）
+
+### 2026-11-01 规则：TUN 排除家里网段 10.20.30.0/24 并新增 tddt.com.cn 强制直连
+
+- 开始：2026-11-01 18:24 +08:00 (UTC+8)
+- 结束：2026-11-01 18:40 +08:00 (UTC+8)
+- 类型：规则增强 / TUN 配置 / 双版本线同步
+- 对象：`src/tun.ts`、`ruleset/MustDirect.list`
+- 原因：用户笔记本（行者）开启 Clash TUN 时，TUN 会抢走去家里 10.20.30.0/24 的流量；该网段经 Tailscale 子网路由访问，需加入 TUN 的 `route-exclude-address`。同时自建 Tailscale 控制面 `hs.tddt.com.cn` 与 WebDAV `dav.tddt.com.cn` 必须直连。
+- 修改：
+  - `src/tun.ts`：`route-exclude-address` 数组新增 `"10.20.30.0/24"`（不受 `tailscale` 参数条件影响），并在函数头注释说明该网段为家里局域网、经 Tailscale 子网路由访问。
+  - `ruleset/MustDirect.list`：末尾新增注释及 `DOMAIN-SUFFIX,tddt.com.cn`。
+- 验证：稽真在隔离环境复核（2026-11-01）：两条线最新代码套用同样改动后，tsgo --noEmit 退出码 0，build 通过；用模拟节点调用 main(config)（tun 开/关各一次）：route-exclude-address 含 10.20.30.0/24 与 100.64.0.0/10，RULE-SET,MustDirect,DIRECT 存在；MustDirect.list 中 ark.cn-beijing 仅 1 条（无重复）。本机（哨兵）因缺 node_modules 与 npm 缓存 EPERM 未能自行构建。
+- 影响：走 Clash TUN 时不再劫持 `10.20.30.0/24`，家里局域网可经 Tailscale 子网路由访问；`tddt.com.cn` 及其子域强制 DIRECT。
+- 撤回：否
+- author: sentinel-codex-01（哨兵 Codex）
+
 ### 2026-09-14 规则：拆分可手动选择的强制代理名单
 
 - 开始：2026-09-14（本地时间）
