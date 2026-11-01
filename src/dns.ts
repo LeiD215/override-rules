@@ -94,6 +94,10 @@ const FAKE_IP_FILTER = [
     // 自定义：llm-api.net 已被 MustDirect 强制直连，这里同步放行 fake-ip，
     // 让 DNS 直接返回真实 IP（与 DOMAIN-SUFFIX 语义一致，覆盖域名及子域名）
     "+.llm-api.net",
+    // 自定义：tddt.com.cn 是自建 Tailscale 控制面（hs.tddt.com.cn）与 WebDAV。
+    // tailscaled 的连接绑定在物理网卡、不经过 Clash TUN，拿到 fake-ip 就连不上；
+    // 必须让 DNS 返回真实 IP（A 与 AAAA 都不能是假地址）。
+    "+.tddt.com.cn",
 ];
 
 /**
