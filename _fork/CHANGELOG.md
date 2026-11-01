@@ -29,7 +29,7 @@
 - 修改：
   - `src/tun.ts`：`route-exclude-address` 数组新增 `"10.20.30.0/24"`（不受 `tailscale` 参数条件影响），并在函数头注释说明该网段为家里局域网、经 Tailscale 子网路由访问。
   - `ruleset/MustDirect.list`：末尾新增注释及 `DOMAIN-SUFFIX,tddt.com.cn`。
-- 验证：`git diff --check` 通过；`npx tsc --noEmit` 本机无法执行（`node_modules` 不存在，npx 尝试从 registry 拉取 `tsc` 时 npm 缓存目录 EPERM）；`npm run build` 失败于 `typecheck` 前置步骤 `'tsgo' is not recognized as an internal or external command`。已按提示改试 `npx tsc --noEmit -p tsconfig.json`，仍因 registry/cache EPERM 失败，固记录为“本机无法执行”。`main(config)` 运行时验证因此未执行。
+- 验证：稽真在隔离环境复核（2026-11-01）：两条线最新代码套用同样改动后，tsgo --noEmit 退出码 0，build 通过；用模拟节点调用 main(config)（tun 开/关各一次）：route-exclude-address 含 10.20.30.0/24 与 100.64.0.0/10，RULE-SET,MustDirect,DIRECT 存在；MustDirect.list 中 ark.cn-beijing 仅 1 条（无重复）。本机（哨兵）因缺 node_modules 与 npm 缓存 EPERM 未能自行构建。
 - 影响：走 Clash TUN 时不再劫持 `10.20.30.0/24`，家里局域网可经 Tailscale 子网路由访问；`tddt.com.cn` 及其子域强制 DIRECT。
 - 撤回：否
 - author: sentinel-codex-01（哨兵 Codex）
